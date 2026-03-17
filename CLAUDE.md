@@ -129,3 +129,8 @@ ALWAYS ask before deleting any file
 - Workflows/ - workflows
 - KnowledgeBase/ - documentation
 - See: Workflows/REQUIREMENTS.md for details
+
+## 6. N8N — работа только с BTI_NEW
+NEVER modify, activate, deactivate, or delete any workflow except BTI_NEW (ID: `305RmoqLIGnuYonX`).
+All other workflows on the n8n instance are unrelated projects and must not be touched.
+Creating new workflows is allowed.
