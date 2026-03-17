@@ -691,39 +691,6 @@
     },
     {
       "parameters": {
-        "conditions": {
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "strict",
-            "version": 3
-          },
-          "conditions": [
-            {
-              "id": "84f67da2-4807-4855-b4d4-48ac95a1a4f5",
-              "leftValue": "={{ $('Telegram Trigger').item.json.message.document.mime_type }}",
-              "rightValue": "application/pdf",
-              "operator": {
-                "type": "string",
-                "operation": "notEquals"
-              }
-            }
-          ],
-          "combinator": "and"
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
-      "position": [
-        928,
-        448
-      ],
-      "id": "5e8fa814-432c-481d-88d1-56591d8fa179",
-      "name": "If3"
-    },
-    {
-      "parameters": {
         "method": "POST",
         "url": "=https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/bti-files/{{ $binary.data.fileName }}",
         "sendHeaders": true,
@@ -776,6 +743,324 @@
           "name": "Telegram account"
         }
       }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "84f67da2-4807-4855-b4d4-48ac95a1a4f5",
+              "leftValue": "={{ $('Telegram Trigger').item.json.message.document.mime_type }}",
+              "rightValue": "application/pdf",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        928,
+        448
+      ],
+      "id": "5e8fa814-432c-481d-88d1-56591d8fa179",
+      "name": "If3"
+    },
+    {
+      "parameters": {
+        "jsCode": "const buffer = await this.helpers.getBinaryDataBuffer(0, 'data');\nconst base64 = buffer.toString('base64');\nconst mimeType = $input.item.binary?.data?.mimeType || 'image/jpeg';\nreturn [{\n  json: { plan_base64: base64, plan_mime: mimeType },\n  binary: $input.item.binary\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1168,
+        480
+      ],
+      "id": "ee000000-0000-0000-0000-000000000000",
+      "name": "Извлечь base64 из плана"
+    },
+    {
+      "parameters": {
+        "jsCode": "const base64 = $('Извлечь base64 из плана').item.json.plan_base64;\nconst mime = $('Извлечь base64 из плана').item.json.plan_mime;\nconst chatId = $('Telegram Trigger').item.json.message.chat.id;\nconst prompt = 'Проанализируй план квартиры на изображении. Определи все помещения (жилые комнаты, кухня, ванная, туалет, коридор, балкон, кладовая). Ответ верни ТОЛЬКО в формате JSON без markdown: объект с полем rooms — массив объектов с полями id (строка room_N), name (название помещения на русском), region_percent (объект с x1, y1, x2, y2 — координаты области от 0 до 1).';\nconst requestBody = {\n  contents: [{parts: [{text: prompt},{inline_data:{mime_type:mime,data:base64}}]}],\n  generationConfig: {temperature: 0.1}\n};\nreturn [{json: {requestBody, chatId}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2064,
+        272
+      ],
+      "id": "ee000000-0000-0000-0000-000000000001",
+      "name": "Подготовить запрос Gemini (комнаты)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "body": "={{ JSON.stringify($json.requestBody) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2304,
+        272
+      ],
+      "id": "ee000000-0000-0000-0000-000000000002",
+      "name": "Gemini: Анализ плана (комнаты)"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $json.candidates?.[0]?.content?.parts?.[0]?.text || '{\"rooms\":[]}';\nconst chatId = $('Подготовить запрос Gemini (комнаты)').item.json.chatId;\nlet rooms_json;\ntry {\n  rooms_json = JSON.parse(text.replace(/```json\\n?/g,'').replace(/```\\n?/g,'').trim());\n} catch(e) {\n  rooms_json = {rooms: []};\n}\nreturn [{json: {rooms_json, chatId}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2544,
+        272
+      ],
+      "id": "ee000000-0000-0000-0000-000000000003",
+      "name": "Распарсить JSON комнат"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/sessions?chat_id=eq.{{ $json.chatId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer SUPABASE_SERVICE_ROLE_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "body": "={{ JSON.stringify({rooms_json: $json.rooms_json}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2784,
+        272
+      ],
+      "id": "ee000000-0000-0000-0000-000000000004",
+      "name": "Сохранить rooms_json"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Распарсить JSON комнат').item.json.chatId }}",
+        "text": "={{ 'Анализ плана завершён!\\n\\nОбнаружены помещения:\\n' + ($('Распарсить JSON комнат').item.json.rooms_json.rooms || []).map(function(r, i){ return (i+1) + '. ' + r.name; }).join('\\n') + '\\n\\nГотовлю точки съёмки...' }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        3024,
+        272
+      ],
+      "id": "ee000000-0000-0000-0000-000000000005",
+      "name": "Отправить список комнат",
+      "webhookId": "ee000000-5555-0000-0000-000000000005",
+      "credentials": {
+        "telegramApi": {
+          "id": "gSpvse5vZRW3hg3k",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const base64 = $('Извлечь base64 из плана').item.json.plan_base64;\nconst mime = $('Извлечь base64 из плана').item.json.plan_mime;\nconst chatId = $('Распарсить JSON комнат').item.json.chatId;\nconst rooms = $('Распарсить JSON комнат').item.json.rooms_json;\nconst prompt = 'По плану квартиры и списку помещений определи 1-2 точки съёмки для каждой комнаты. Помещения: ' + JSON.stringify(rooms) + '. Ответ ТОЛЬКО в формате JSON без markdown: объект с полем shots — массив объектов с полями shot_id (room_N_shot_M), room_id, room_name, position (позиция в комнате на русском), direction (направление съёмки на русском), instruction (инструкция фотографу на русском).';\nconst requestBody = {\n  contents: [{parts: [{text: prompt},{inline_data:{mime_type:mime,data:base64}}]}],\n  generationConfig: {temperature: 0.1}\n};\nreturn [{json: {requestBody, chatId}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3264,
+        272
+      ],
+      "id": "ee000000-0000-0000-0000-000000000006",
+      "name": "Подготовить запрос Gemini (точки)"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key={{ $env.GEMINI_API_KEY }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "body": "={{ JSON.stringify($json.requestBody) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        3504,
+        272
+      ],
+      "id": "ee000000-0000-0000-0000-000000000007",
+      "name": "Gemini: Точки съёмки"
+    },
+    {
+      "parameters": {
+        "jsCode": "const text = $json.candidates?.[0]?.content?.parts?.[0]?.text || '{\"shots\":[]}';\nconst chatId = $('Подготовить запрос Gemini (точки)').item.json.chatId;\nlet shots_json;\ntry {\n  shots_json = JSON.parse(text.replace(/```json\\n?/g,'').replace(/```\\n?/g,'').trim());\n} catch(e) {\n  shots_json = {shots: []};\n}\nconst shots_status = {};\nfor (const s of (shots_json.shots || [])) shots_status[s.shot_id] = 'pending';\nconst firstShot = shots_json.shots?.[0] || null;\nreturn [{json: {shots_json, shots_status, chatId, firstShot}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3744,
+        272
+      ],
+      "id": "ee000000-0000-0000-0000-000000000008",
+      "name": "Распарсить точки съёмки"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/sessions?chat_id=eq.{{ $json.chatId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer SUPABASE_SERVICE_ROLE_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "body": "={{ JSON.stringify({shots_json: $json.shots_json, shots_status: $json.shots_status, step: 'collecting_photos'}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        3984,
+        272
+      ],
+      "id": "ee000000-0000-0000-0000-000000000009",
+      "name": "Сохранить shots + обновить step"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Распарсить точки съёмки').item.json.chatId }}",
+        "text": "={{ $('Распарсить точки съёмки').item.json.firstShot ? 'Помещение: ' + $('Распарсить точки съёмки').item.json.firstShot.room_name + '\\n\\nПозиция: ' + $('Распарсить точки съёмки').item.json.firstShot.position + '\\nНаправление: ' + $('Распарсить точки съёмки').item.json.firstShot.direction + '\\n\\n' + $('Распарсить точки съёмки').item.json.firstShot.instruction + '\\n\\nПожалуйста, пришлите фотографию.' : 'Точки съёмки не определены. Обратитесь к администратору.' }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        4224,
+        272
+      ],
+      "id": "ee000000-0000-0000-0000-00000000000a",
+      "name": "Отправить первую инструкцию",
+      "webhookId": "ee000000-5555-0000-0000-00000000000a",
+      "credentials": {
+        "telegramApi": {
+          "id": "gSpvse5vZRW3hg3k",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const parsed = $('Распарсить точки съёмки').item.json;\nconst shots_status = Object.assign({}, parsed.shots_status);\nif (parsed.firstShot) shots_status[parsed.firstShot.shot_id] = 'requested';\nreturn [{json: {shots_status, chatId: parsed.chatId}}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4464,
+        272
+      ],
+      "id": "ee000000-0000-0000-0000-00000000000b",
+      "name": "Обновить статус первого shot"
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/sessions?chat_id=eq.{{ $json.chatId }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer SUPABASE_SERVICE_ROLE_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "raw",
+        "body": "={{ JSON.stringify({shots_status: $json.shots_status}) }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        4704,
+        272
+      ],
+      "id": "ee000000-0000-0000-0000-00000000000c",
+      "name": "Записать статус first shot"
     }
   ],
   "pinData": {},
@@ -963,7 +1248,40 @@
       "main": [
         [
           {
+            "node": "Извлечь base64 из плана",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Извлечь base64 из плана": {
+      "main": [
+        [
+          {
             "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Update a row1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text message6": {
+      "main": [
+        [
+          {
+            "node": "Get a file",
             "type": "main",
             "index": 0
           }
@@ -988,22 +1306,132 @@
         ]
       ]
     },
-    "HTTP Request": {
+    "Send a text message5": {
       "main": [
         [
           {
-            "node": "Update a row1",
+            "node": "Подготовить запрос Gemini (комнаты)",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Send a text message6": {
+    "Подготовить запрос Gemini (комнаты)": {
       "main": [
         [
           {
-            "node": "Get a file",
+            "node": "Gemini: Анализ плана (комнаты)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini: Анализ плана (комнаты)": {
+      "main": [
+        [
+          {
+            "node": "Распарсить JSON комнат",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Распарсить JSON комнат": {
+      "main": [
+        [
+          {
+            "node": "Сохранить rooms_json",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Сохранить rooms_json": {
+      "main": [
+        [
+          {
+            "node": "Отправить список комнат",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Отправить список комнат": {
+      "main": [
+        [
+          {
+            "node": "Подготовить запрос Gemini (точки)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Подготовить запрос Gemini (точки)": {
+      "main": [
+        [
+          {
+            "node": "Gemini: Точки съёмки",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Gemini: Точки съёмки": {
+      "main": [
+        [
+          {
+            "node": "Распарсить точки съёмки",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Распарсить точки съёмки": {
+      "main": [
+        [
+          {
+            "node": "Сохранить shots + обновить step",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Сохранить shots + обновить step": {
+      "main": [
+        [
+          {
+            "node": "Отправить первую инструкцию",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Отправить первую инструкцию": {
+      "main": [
+        [
+          {
+            "node": "Обновить статус первого shot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Обновить статус первого shot": {
+      "main": [
+        [
+          {
+            "node": "Записать статус first shot",
             "type": "main",
             "index": 0
           }
