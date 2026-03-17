@@ -143,7 +143,7 @@
     {
       "parameters": {
         "chatId": "={{ $json.chat_id }}",
-        "text": "Добрый день, я бот-помощник для анализа плана БТИ и определения перепланировки",
+        "text": "Добрый день, я бот-помощник для анализа плана БТИ и определения перепланировки. Для того, чтобы начать процесс обработки, пожалуйста, пришлите мне фотографию вашего БТИ",
         "additionalFields": {
           "appendAttribution": false
         }
@@ -400,8 +400,8 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        240,
-        224
+        368,
+        288
       ],
       "id": "a2d333c1-edb0-4dec-ac13-a968ff6febd1",
       "name": "Get a row1",
@@ -429,37 +429,8 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        240,
-        416
-      ],
-      "id": "d91f89dd-3021-4941-85e4-dc454b66ce0c",
-      "name": "Get a row2",
-      "alwaysOutputData": true,
-      "credentials": {
-        "supabaseApi": {
-          "id": "VMZLB9TTXZmIHe9x",
-          "name": "Supabase account"
-        }
-      }
-    },
-    {
-      "parameters": {
-        "operation": "get",
-        "tableId": "sessions",
-        "filters": {
-          "conditions": [
-            {
-              "keyName": "chat_id",
-              "keyValue": "={{ $json.chat_id }}"
-            }
-          ]
-        }
-      },
-      "type": "n8n-nodes-base.supabase",
-      "typeVersion": 1,
-      "position": [
-        224,
-        608
+        208,
+        1216
       ],
       "id": "9b1bf42b-11ce-4e15-b44e-3676334d401c",
       "name": "Get a row3",
@@ -506,8 +477,8 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        448,
-        224
+        544,
+        288
       ],
       "id": "aec4ad83-0fb8-4369-84b4-808dc7bb6013",
       "name": "Switch1"
@@ -547,52 +518,264 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        448,
-        416
-      ],
-      "id": "1617e4c6-c37a-4ef9-a1c1-d1d647c48832",
-      "name": "Switch2"
-    },
-    {
-      "parameters": {
-        "rules": {
-          "values": [
-            {
-              "conditions": {
-                "options": {
-                  "caseSensitive": true,
-                  "leftValue": "",
-                  "typeValidation": "strict",
-                  "version": 3
-                },
-                "conditions": [
-                  {
-                    "leftValue": "={{ $json.step }}",
-                    "rightValue": "=awaiting_plan",
-                    "operator": {
-                      "type": "string",
-                      "operation": "equals"
-                    },
-                    "id": "af10075c-d1f3-4439-bc0d-33e2a6b3c4f9"
-                  }
-                ],
-                "combinator": "and"
-              },
-              "renameOutput": true,
-              "outputKey": "awaiting_plan"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "type": "n8n-nodes-base.switch",
-      "typeVersion": 3.4,
-      "position": [
-        448,
-        608
+        432,
+        1216
       ],
       "id": "a1c6e580-4019-490a-a01e-dc3f40c1a2ca",
       "name": "Switch3"
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "05bf7145-37dc-4523-9a78-179efad5192a",
+              "leftValue": "={{$('Telegram Trigger').item.json.message.photo}}",
+              "rightValue": "",
+              "operator": {
+                "type": "array",
+                "operation": "exists",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        704,
+        288
+      ],
+      "id": "4c6ecaa8-b9c5-40d6-8b64-30178d6331c4",
+      "name": "If2"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "Пожалуйста, отправьте фотографию плана БТИ, не используйте файлы формата PDF. Данная функция находится в разработке.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1152,
+        544
+      ],
+      "id": "bd900f28-436c-45dd-a20e-c263b2df3094",
+      "name": "Send a text message3",
+      "webhookId": "d832c17f-f0e3-49bc-aedd-d7dd9d999fa8",
+      "credentials": {
+        "telegramApi": {
+          "id": "gSpvse5vZRW3hg3k",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "Вы отправили текстовое сообщение. Данный бот ожидает от Вас фотографии или файлы, пожалуйста, отправьте команду /start получения инструкций.",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        256,
+        512
+      ],
+      "id": "80a0a007-1891-4cb8-a049-dd42495e4a4e",
+      "name": "Send a text message4",
+      "webhookId": "57580e18-cc79-4a7f-aed1-c93f7fff8865",
+      "credentials": {
+        "telegramApi": {
+          "id": "gSpvse5vZRW3hg3k",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "tableId": "sessions",
+        "filters": {
+          "conditions": [
+            {
+              "keyName": "chat_id",
+              "condition": "eq",
+              "keyValue": "={{ $('Telegram Trigger').item.json.message.chat.id }}"
+            }
+          ]
+        },
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "step",
+              "fieldValue": "plan_received"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        1600,
+        272
+      ],
+      "id": "86df6172-460d-4e00-b272-992d29db2e46",
+      "name": "Update a row1",
+      "credentials": {
+        "supabaseApi": {
+          "id": "VMZLB9TTXZmIHe9x",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $json.chat_id }}",
+        "text": "Отлично! Фотография принята, начинаю обработку",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1808,
+        272
+      ],
+      "id": "91ad959b-de03-4370-b9e5-4be20938b3d1",
+      "name": "Send a text message5",
+      "webhookId": "57580e18-cc79-4a7f-aed1-c93f7fff8865",
+      "credentials": {
+        "telegramApi": {
+          "id": "gSpvse5vZRW3hg3k",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "resource": "file",
+        "fileId": "={{ $('Telegram Trigger').item?.json?.message?.document?.thumbnail?.file_id || $('Telegram Trigger').item?.json?.message?.photo[1]?.file_id}}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1168,
+        272
+      ],
+      "id": "03504365-97e5-4c72-b2c1-acda94bee766",
+      "name": "Get a file",
+      "webhookId": "2ffed08d-a1c5-438e-93fc-0772ffcb56d0",
+      "credentials": {
+        "telegramApi": {
+          "id": "gSpvse5vZRW3hg3k",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "84f67da2-4807-4855-b4d4-48ac95a1a4f5",
+              "leftValue": "={{ $('Telegram Trigger').item.json.message.document.mime_type }}",
+              "rightValue": "application/pdf",
+              "operator": {
+                "type": "string",
+                "operation": "notEquals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        928,
+        448
+      ],
+      "id": "5e8fa814-432c-481d-88d1-56591d8fa179",
+      "name": "If3"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/bti-files/{{ $binary.data.fileName }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer SUPABASE_SERVICE_ROLE_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "image/png"
+            }
+          ]
+        },
+        "sendBody": true,
+        "contentType": "binaryData",
+        "inputDataFieldName": "data",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1376,
+        272
+      ],
+      "id": "75d38dfe-a322-4519-b83b-d1992748fd8a",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "text": "Внимание! Telegram даёт сжатое изображение, из-за этого результат может быть неточным. ",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        928,
+        272
+      ],
+      "id": "cb8e7446-f2a7-4bc8-9fa9-c95ed448eb63",
+      "name": "Send a text message6",
+      "webhookId": "57580e18-cc79-4a7f-aed1-c93f7fff8865",
+      "credentials": {
+        "telegramApi": {
+          "id": "gSpvse5vZRW3hg3k",
+          "name": "Telegram account"
+        }
+      }
     }
   ],
   "pinData": {},
@@ -626,7 +809,7 @@
         ],
         [
           {
-            "node": "Get a row2",
+            "node": "Send a text message4",
             "type": "main",
             "index": 0
           }
@@ -720,22 +903,107 @@
         ]
       ]
     },
-    "Get a row2": {
+    "Get a row3": {
       "main": [
         [
           {
-            "node": "Switch2",
+            "node": "Switch3",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Get a row3": {
+    "Switch1": {
       "main": [
         [
           {
-            "node": "Switch3",
+            "node": "If2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If2": {
+      "main": [
+        [
+          {
+            "node": "Send a text message6",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "If3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text message3": {
+      "main": [
+        []
+      ]
+    },
+    "Update a row1": {
+      "main": [
+        [
+          {
+            "node": "Send a text message5",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get a file": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If3": {
+      "main": [
+        [
+          {
+            "node": "Get a file",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Send a text message3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Update a row1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Send a text message6": {
+      "main": [
+        [
+          {
+            "node": "Get a file",
             "type": "main",
             "index": 0
           }
@@ -749,7 +1017,7 @@
     "binaryMode": "separate",
     "availableInMCP": false
   },
-  "versionId": "227a2162-4f98-4321-8314-99d32bca36d9",
+  "versionId": "44a7d3e8-452e-4fb2-8b09-8bc3c79dce89",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "ffa24a8326a3776c5f7182355adf187f9fd19cf4cf11e4af8f417ee948d673e8"
