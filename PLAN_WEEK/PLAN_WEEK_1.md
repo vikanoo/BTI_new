@@ -76,21 +76,23 @@ Telegram Webhook Trigger
 
 ---
 
-## 🔄 Среда 18.03 — Шаг 1: Приём плана БТИ
+## ✅ Среда 18.03 — Шаг 1: Приём плана БТИ
 
 **Ветка `document/photo` при `step = 'awaiting_plan'`**
 
-- [ ] Определить тип входящего файла: `photo` vs `document`
+- [x] Определить тип входящего файла: `photo` vs `document`
   - `photo` — Telegram даёт сжатое изображение (предупредить пользователя, принять)
   - `document` — принять как есть; если `mime_type = application/pdf` — флаг конвертации
-- [ ] Скачать файл через Telegram API (`getFile` → download URL)
-- [ ] Загрузить в Supabase Storage (`bti-files/plans/{chat_id}/plan.png`)
-- [ ] Если PDF: конвертировать в PNG через Code Node (base64 → pdf2image через HTTP к Python-сервису) или временно — попросить пользователя присылать фото
-- [ ] Обновить `sessions`: `step = 'plan_received'`, `plan_url = <storage_url>`
-- [ ] Отправить пользователю: "План получен, начинаю анализ..."
+- [x] Скачать файл через Telegram API (`getFile` → download URL)
+- [x] Загрузить в Supabase Storage (`bti-files/plans/{chat_id}/plan.png`)
+- [x] Если PDF: конвертировать в PNG через Code Node (base64 → pdf2image через HTTP к Python-сервису) или временно — попросить пользователя присылать фото
+- [x] Обновить `sessions`: `step = 'plan_received'`, `plan_url = <storage_url>`
+- [x] Отправить пользователю: "План получен, начинаю анализ..."
 
 > На этом этапе Python-сервис ещё не готов — PDF-конвертацию можно пропустить,
 > принимать только изображения. Вернуться к PDF на следующей неделе.
+
+🖍️**Заметки:** Сейчас не реализована конвертация PDF в PNG и необходимо редактировать тексты сообщений от бота.
 
 **Результат дня:** Бот принимает фото плана, сохраняет в Storage, меняет шаг сессии
 
