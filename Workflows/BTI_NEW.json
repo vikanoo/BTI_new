@@ -1,10 +1,10 @@
 {
-  "updatedAt": "2026-03-20T09:27:14.537Z",
+  "updatedAt": "2026-03-20T10:31:35.702Z",
   "createdAt": "2026-03-17T08:49:57.940Z",
   "id": "305RmoqLIGnuYonX",
   "name": "BTI_NEW",
   "description": null,
-  "active": false,
+  "active": true,
   "isArchived": false,
   "nodes": [
     {
@@ -995,7 +995,7 @@
     {
       "parameters": {
         "resource": "file",
-        "fileId": "={{ $('Telegram Trigger').item.json.message.document ? $('Telegram Trigger').item.json.message.document.file_id : $('Telegram Trigger').item.json.message.photo[$('Telegram Trigger').item.json.message.photo.length - 1].file_id }}",
+        "fileId": "={{ $json.file_id }}",
         "additionalFields": {}
       },
       "type": "n8n-nodes-base.telegram",
@@ -1888,6 +1888,19 @@
       ],
       "id": "save-analysis-result-node-001",
       "name": "HTTP Request - Save Analysis Result"
+    },
+    {
+      "parameters": {
+        "jsCode": "const msg = $('Telegram Trigger').first().json.message;\nvar fileId;\nif (msg.document) {\n  fileId = msg.document.file_id;\n} else {\n  var photos = msg.photo;\n  fileId = photos[photos.length - 1].file_id;\n}\nreturn [{ json: { file_id: fileId } }];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        940,
+        1264
+      ],
+      "id": "code-extract-file-id-0001",
+      "name": "Code - Extract File ID"
     }
   ],
   "connections": {
@@ -2412,7 +2425,7 @@
         ],
         [
           {
-            "node": "Get Photo for Shot",
+            "node": "Code - Extract File ID",
             "type": "main",
             "index": 0
           }
@@ -2423,7 +2436,7 @@
       "main": [
         [
           {
-            "node": "Get Photo for Shot",
+            "node": "Code - Extract File ID",
             "type": "main",
             "index": 0
           }
@@ -2568,6 +2581,17 @@
           }
         ]
       ]
+    },
+    "Code - Extract File ID": {
+      "main": [
+        [
+          {
+            "node": "Get Photo for Shot",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -2580,9 +2604,9 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "af020a8d-520d-42b0-9221-e443a57ec92f",
-  "activeVersionId": null,
-  "versionCounter": 85,
+  "versionId": "e27d7da4-966a-473c-8255-55da57098792",
+  "activeVersionId": "e27d7da4-966a-473c-8255-55da57098792",
+  "versionCounter": 120,
   "triggerCount": 1,
   "shared": [
     {
@@ -2635,5 +2659,2620 @@
     }
   ],
   "tags": [],
-  "activeVersion": null
+  "activeVersion": {
+    "updatedAt": "2026-03-20T10:31:35.706Z",
+    "createdAt": "2026-03-20T10:31:35.706Z",
+    "versionId": "e27d7da4-966a-473c-8255-55da57098792",
+    "workflowId": "305RmoqLIGnuYonX",
+    "nodes": [
+      {
+        "parameters": {
+          "updates": [
+            "*"
+          ],
+          "additionalFields": {}
+        },
+        "type": "n8n-nodes-base.telegramTrigger",
+        "typeVersion": 1.2,
+        "position": [
+          -1264,
+          400
+        ],
+        "id": "d1e5a878-4856-4c61-96a0-3e4caec1ddbe",
+        "name": "Telegram Trigger",
+        "webhookId": "a751d6ad-0d02-4f91-8835-f14882e737ec",
+        "credentials": {
+          "telegramApi": {
+            "id": "pf7Lmwh5V28tUCpr",
+            "name": "BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "rules": {
+            "values": [
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $('Telegram Trigger').item.json.message.text }}",
+                      "rightValue": "=/start",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "id": "af10075c-d1f3-4439-bc0d-33e2a6b3c4f9"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "start"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "id": "ab13cacd-78b0-4be5-965c-48b27f9e9199",
+                      "leftValue": "={{ \n!!$('Telegram Trigger').item.json.message.document || \n!!$('Telegram Trigger').item.json.message.photo \n}}",
+                      "rightValue": "/start",
+                      "operator": {
+                        "type": "boolean",
+                        "operation": "true",
+                        "singleValue": true
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "photo/document"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "id": "307703b2-dbdd-4583-ad4e-bd5ef24d900b",
+                      "leftValue": "={{ $('Telegram Trigger').item.json.message.text }}",
+                      "rightValue": "",
+                      "operator": {
+                        "type": "string",
+                        "operation": "exists",
+                        "singleValue": true
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "text"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "id": "d79f5c10-c1ce-4606-a0b5-1c0c08a22e2a",
+                      "leftValue": "={{ $('Telegram Trigger').item.json.callback_query }}",
+                      "rightValue": "",
+                      "operator": {
+                        "type": "object",
+                        "operation": "exists",
+                        "singleValue": true
+                      }
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "inline"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [
+          -448,
+          416
+        ],
+        "id": "3cdb270b-4093-4bb9-8a75-a8f6ad78b555",
+        "name": "Switch"
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $json.chat_id }}",
+          "text": "Добрый день, я бот-помощник для анализа плана БТИ и определения перепланировки. Для того, чтобы начать процесс обработки, пожалуйста, пришлите мне фотографию вашего БТИ",
+          "additionalFields": {
+            "appendAttribution": false
+          }
+        },
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          16,
+          352
+        ],
+        "id": "3dd43132-2b79-46ff-8d91-a25d8b68b424",
+        "name": "Send a text message",
+        "webhookId": "57580e18-cc79-4a7f-aed1-c93f7fff8865",
+        "credentials": {
+          "telegramApi": {
+            "id": "pf7Lmwh5V28tUCpr",
+            "name": "BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "useCustomSchema": true,
+          "operation": "getAll",
+          "tableId": "allowed_users",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "chat_id",
+                "condition": "eq",
+                "keyValue": "={{ $json.callback_query?.message?.chat?.id || $json.message?.chat?.id }}"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          -992,
+          400
+        ],
+        "id": "211242d7-2513-4d75-9810-5e772e63b7ec",
+        "name": "Get many rows",
+        "alwaysOutputData": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "G3gtUOBUeFqG3cuE",
+            "name": "DB_BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "4065eddd-dacd-48fd-a6db-884489275da3",
+                "leftValue": "={{ $json.chat_id }}",
+                "rightValue": 0,
+                "operator": {
+                  "type": "number",
+                  "operation": "notExists",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          -736,
+          400
+        ],
+        "id": "5e8b1190-de6b-4045-9e73-f43c3959699e",
+        "name": "If"
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+          "text": "У Вас нет доступа к этому боту, пожалуйста, обратитесь к администратору",
+          "additionalFields": {
+            "appendAttribution": false
+          }
+        },
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          -384,
+          176
+        ],
+        "id": "0e4141d4-7f51-4e8f-81c2-47bd2ba51896",
+        "name": "Send a text message1",
+        "webhookId": "399780a9-03cd-41a0-b84b-264b77e769a7",
+        "credentials": {
+          "telegramApi": {
+            "id": "pf7Lmwh5V28tUCpr",
+            "name": "BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "get",
+          "tableId": "sessions",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "chat_id",
+                "keyValue": "={{ $json.result.chat.id }}"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          208,
+          352
+        ],
+        "id": "9751cf10-cc19-4996-ac48-b511967c0833",
+        "name": "Get a row",
+        "alwaysOutputData": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "G3gtUOBUeFqG3cuE",
+            "name": "DB_BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "364d5e6e-3af8-4188-a3ca-ffcbf5a9bf7d",
+                "leftValue": "={{ $json.chat_id }}",
+                "rightValue": 0,
+                "operator": {
+                  "type": "number",
+                  "operation": "notExists",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          416,
+          352
+        ],
+        "id": "e0d01ac3-7181-46fe-9937-4ba2602dd3dc",
+        "name": "If1"
+      },
+      {
+        "parameters": {
+          "tableId": "sessions",
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "chat_id",
+                "fieldValue": "={{ $('Send a text message').item.json.result.chat.id }}"
+              },
+              {
+                "fieldId": "step",
+                "fieldValue": "awaiting_plan"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          640,
+          256
+        ],
+        "id": "c079dcfc-1f76-466a-a7d3-47c3a8011f16",
+        "name": "Create a row",
+        "credentials": {
+          "supabaseApi": {
+            "id": "G3gtUOBUeFqG3cuE",
+            "name": "DB_BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "tableId": "sessions",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "chat_id",
+                "condition": "eq",
+                "keyValue": "={{ $('Get a row').item.json.chat_id }}"
+              }
+            ]
+          },
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "step",
+                "fieldValue": "awaiting_plan"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          656,
+          416
+        ],
+        "id": "eaa4ab81-e571-4e0c-b439-092fee08bb0d",
+        "name": "Update a row",
+        "credentials": {
+          "supabaseApi": {
+            "id": "G3gtUOBUeFqG3cuE",
+            "name": "DB_BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "get",
+          "tableId": "sessions",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "chat_id",
+                "keyValue": "={{ $json.chat_id }}"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          256,
+          640
+        ],
+        "id": "5f45d151-abf9-4e6f-88f1-e75777e4df77",
+        "name": "Get a row1",
+        "alwaysOutputData": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "G3gtUOBUeFqG3cuE",
+            "name": "DB_BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "get",
+          "tableId": "sessions",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "chat_id",
+                "keyValue": "={{ $json.chat_id }}"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          -176,
+          1808
+        ],
+        "id": "4b3f35d0-f74c-42aa-9770-7024282214a8",
+        "name": "Get a row3",
+        "alwaysOutputData": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "G3gtUOBUeFqG3cuE",
+            "name": "DB_BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "rules": {
+            "values": [
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.step }}",
+                      "rightValue": "=awaiting_plan",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "id": "af10075c-d1f3-4439-bc0d-33e2a6b3c4f9"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "awaiting_plan"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.step }}",
+                      "rightValue": "=collecting_photos",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "id": "287d7ce6-cdad-4b60-ac40-256404ea4742"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "collecting_photos"
+              },
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.step }}",
+                      "rightValue": "=photos_complete",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "id": "pc-rule-switch1-0001"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "photos_complete"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [
+          416,
+          640
+        ],
+        "id": "1cb03d59-88af-4142-8283-5b7d00e9d0ac",
+        "name": "Switch1"
+      },
+      {
+        "parameters": {
+          "rules": {
+            "values": [
+              {
+                "conditions": {
+                  "options": {
+                    "caseSensitive": true,
+                    "leftValue": "",
+                    "typeValidation": "strict",
+                    "version": 3
+                  },
+                  "conditions": [
+                    {
+                      "leftValue": "={{ $json.step }}",
+                      "rightValue": "=awaiting_plan",
+                      "operator": {
+                        "type": "string",
+                        "operation": "equals"
+                      },
+                      "id": "af10075c-d1f3-4439-bc0d-33e2a6b3c4f9"
+                    }
+                  ],
+                  "combinator": "and"
+                },
+                "renameOutput": true,
+                "outputKey": "awaiting_plan"
+              }
+            ]
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.switch",
+        "typeVersion": 3.4,
+        "position": [
+          48,
+          1808
+        ],
+        "id": "21cb7714-f82d-4697-bcaa-c9c497266fd5",
+        "name": "Switch3"
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "05bf7145-37dc-4523-9a78-179efad5192a",
+                "leftValue": "={{$('Telegram Trigger').item.json.message.photo}}",
+                "rightValue": "",
+                "operator": {
+                  "type": "array",
+                  "operation": "exists",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          720,
+          624
+        ],
+        "id": "de6b50fc-6be4-4a08-adb0-3bb52b7aed02",
+        "name": "If2"
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+          "text": "Пожалуйста, отправьте фотографию плана БТИ, не используйте файлы формата PDF. Данная функция находится в разработке.",
+          "additionalFields": {
+            "appendAttribution": false
+          }
+        },
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          1168,
+          832
+        ],
+        "id": "46a29113-d0ec-45d6-aa78-8b1c5878ed3d",
+        "name": "Send a text message3",
+        "webhookId": "d832c17f-f0e3-49bc-aedd-d7dd9d999fa8",
+        "credentials": {
+          "telegramApi": {
+            "id": "pf7Lmwh5V28tUCpr",
+            "name": "BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $json.chat_id }}",
+          "text": "Вы отправили текстовое сообщение. Данный бот ожидает от Вас фотографии или файлы, пожалуйста, отправьте команду /start получения инструкций.",
+          "additionalFields": {
+            "appendAttribution": false
+          }
+        },
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          256,
+          1200
+        ],
+        "id": "87efe85c-f532-4a82-acb8-c7f5cc8bcff3",
+        "name": "Send a text message4",
+        "webhookId": "57580e18-cc79-4a7f-aed1-c93f7fff8865",
+        "credentials": {
+          "telegramApi": {
+            "id": "pf7Lmwh5V28tUCpr",
+            "name": "BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "tableId": "sessions",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "chat_id",
+                "condition": "eq",
+                "keyValue": "={{ $('Telegram Trigger').item.json.message.chat.id }}"
+              }
+            ]
+          },
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "step",
+                "fieldValue": "plan_received"
+              },
+              {
+                "fieldId": "plan_url",
+                "fieldValue": "=https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/plans/{{ $('Telegram Trigger').item.json.message.chat.id }}/plan.png"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          1936,
+          608
+        ],
+        "id": "fd49dc1e-3545-4758-9ad2-8595ddad11de",
+        "name": "Update a row1",
+        "credentials": {
+          "supabaseApi": {
+            "id": "G3gtUOBUeFqG3cuE",
+            "name": "DB_BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $json.chat_id }}",
+          "text": "Отлично! Фотография принята, начинаю обработку",
+          "additionalFields": {
+            "appendAttribution": false
+          }
+        },
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          2144,
+          608
+        ],
+        "id": "e90a14a3-71d9-40cc-87ec-5006aad49823",
+        "name": "Send a text message5",
+        "webhookId": "57580e18-cc79-4a7f-aed1-c93f7fff8865",
+        "credentials": {
+          "telegramApi": {
+            "id": "pf7Lmwh5V28tUCpr",
+            "name": "BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "resource": "file",
+          "fileId": "={{ $('Telegram Trigger').item?.json?.message?.document?.file_id || $('Telegram Trigger').item?.json?.message?.photo?.slice(-1)[0]?.file_id }}",
+          "additionalFields": {}
+        },
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          1168,
+          608
+        ],
+        "id": "d5e713e7-2ef3-47c3-8911-0bf3a4d1a9dd",
+        "name": "Get a file",
+        "webhookId": "2ffed08d-a1c5-438e-93fc-0772ffcb56d0",
+        "credentials": {
+          "telegramApi": {
+            "id": "pf7Lmwh5V28tUCpr",
+            "name": "BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "84f67da2-4807-4855-b4d4-48ac95a1a4f5",
+                "leftValue": "={{ $('Telegram Trigger').item.json.message.document.mime_type }}",
+                "rightValue": "application/pdf",
+                "operator": {
+                  "type": "string",
+                  "operation": "notEquals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          928,
+          816
+        ],
+        "id": "74d702b6-c01f-4cfd-a3d3-88b3ea2e0451",
+        "name": "If3"
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+          "text": "Внимание! Telegram даёт сжатое изображение, из-за этого результат может быть неточным. ",
+          "additionalFields": {
+            "appendAttribution": false
+          }
+        },
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          928,
+          608
+        ],
+        "id": "1c4f1c8b-5fd3-4137-81bb-ee5cdfb54f20",
+        "name": "Send a text message6",
+        "webhookId": "57580e18-cc79-4a7f-aed1-c93f7fff8865",
+        "credentials": {
+          "telegramApi": {
+            "id": "pf7Lmwh5V28tUCpr",
+            "name": "BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "method": "PUT",
+          "url": "=https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/bti-files/plans/{{ $('Telegram Trigger').item.json.message.chat.id }}/plan.png",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer SUPABASE_SERVICE_ROLE_KEY"
+              },
+              {
+                "name": "Content-Type",
+                "value": "={{ $('Telegram Trigger').item.json.message.document?.mime_type || 'image/jpeg' }}"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "binaryData",
+          "inputDataFieldName": "data",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          1344,
+          608
+        ],
+        "id": "1ae98b25-cd63-4132-b3da-a5485db392e4",
+        "name": "HTTP Request1"
+      },
+      {
+        "parameters": {
+          "jsCode": "const chatId  = $('Telegram Trigger').first().json.message.chat.id;\n\n// Передаём публичный URL напрямую — OpenAI скачивает изображение сам.\n// base64 не используем: n8n хранит бинарные данные на диске (filesystem-v2).\nconst planUrl = 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/plans/' + chatId + '/plan.png';\n\nconst prompt =\n  'Ты — эксперт по анализу планов БТИ. Проанализируй план квартиры.\\n' +\n  'Верни ТОЛЬКО чистый JSON (без markdown, без пояснений) в точно таком формате:\\n' +\n  '{\"rooms\":[{\"id\":\"room_1\",\"name\":\"Жилая комната 1\",\"region_percent\":{\"x1\":0.05,\"y1\":0.10,\"x2\":0.45,\"y2\":0.55}}],' +\n  '\"shots\":[{\"shot_id\":\"room_1_shot_1\",\"room_id\":\"room_1\",\"room_name\":\"Жилая комната 1\",\"position\":\"северо-западный угол\",\"direction\":\"на юго-восток\",\"instruction\":\"Встаньте в угол и сфотографируйте всё помещение целиком\"}]}\\n' +\n  'Правила:\\n' +\n  '- Найди все помещения: жилые комнаты, кухня, санузел(ы), коридор, балкон/лоджия, кладовая\\n' +\n  '- Для каждого помещения: 1-2 точки съёмки (угол охвата >= 120 градусов)\\n' +\n  '- Инструкции конкретные: с какой точки, куда смотреть\\n' +  '- Все тексты на русском языке\\n' +\n  '- region_percent: нормализованные координаты 0.0-1.0';\n\nconst requestBody = {\n  model: \"gpt-4o-mini\",\n  messages: [{\n    role: \"user\",\n    content: [\n      { type: \"text\", text: prompt },\n      { type: \"image_url\", image_url: { url: planUrl, detail: \"high\" } }\n    ]\n  }],\n  response_format: { type: \"json_object\" },\n  temperature: 0.1,\n  max_tokens: 4096\n};\n\nreturn [{ json: { chatId, requestBodyString: JSON.stringify(requestBody) } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2368,
+          608
+        ],
+        "id": "fc116ce3-51c6-48b2-9d18-7f739bfddb24",
+        "name": "Code - Gemini Request"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.openai.com/v1/chat/completions",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer OPENAI_API_KEY"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ $json.requestBodyString }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          2608,
+          608
+        ],
+        "id": "93876821-54aa-4474-85f5-b81ca5060de6",
+        "name": "HTTP Request - Gemini"
+      },
+      {
+        "parameters": {
+          "jsCode": "const resp   = $input.first().json;\nconst chatId = $('Code - Gemini Request').first().json.chatId;\n\nlet parsed;\ntry {\n  const text = resp.choices[0].message.content;\n  parsed = JSON.parse(text);\n} catch(e) {\n  throw new Error('Ошибка разбора ответа GPT: ' + e.message);\n}\n\nconst rooms = parsed.rooms || [];\nconst shots = parsed.shots || [];\n\nconst shotsStatus = {};\nshots.forEach(s => { shotsStatus[s.shot_id] = 'pending'; });\n\nconst firstShot = shots[0];\nif (!firstShot) throw new Error('GPT не вернул точки съёмки');\nshotsStatus[firstShot.shot_id] = 'requested';\n\n// HTML-escape dynamic content from LLM to avoid Telegram parse errors\nfunction h(s) {\n  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n}\n\nconst roomsList = rooms.map(r => '• ' + h(r.name)).join('\\n');\nconst roomsText = '<b>План проанализирован!</b>\\nОбнаруженные помещения:\\n' + roomsList\n  + '\\nВсего точек съёмки: ' + shots.length;\n\nconst total    = shots.length;\nconst firstMsg = '📷 <b>Фото 1 из ' + total + '</b>\\n'\n  + '🏠 ' + h(firstShot.room_name) + '\\n'\n  + '📍 Позиция: ' + h(firstShot.position) + '\\n'\n  + '➡️ Направление: ' + h(firstShot.direction) + '\\n'\n  + h(firstShot.instruction) + '\\n'\n  + '<i>Отправьте фото как документ/файл — это сохраняет качество</i>';\n\nreturn [{\n  json: {\n    chatId,\n    rooms_json:        rooms,\n    shots_json:        shots,\n    shots_status:      shotsStatus,\n    rooms_text:        roomsText,\n    first_instruction: firstMsg,\n    total_shots:       total\n  }\n}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2848,
+          608
+        ],
+        "id": "91eb5d68-3d8a-457e-ac76-9495a3e555db",
+        "name": "Code - Parse Gemini"
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $json.chatId }}",
+          "text": "={{ $json.rooms_text }}",
+          "additionalFields": {
+            "appendAttribution": false,
+            "parse_mode": "HTML"
+          }
+        },
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          3088,
+          608
+        ],
+        "id": "e7416cab-f5c2-4176-ac65-8fd3cc891595",
+        "name": "Telegram - Plan Analyzed",
+        "webhookId": "317298b9-df44-4134-a351-a0ed68001c30",
+        "credentials": {
+          "telegramApi": {
+            "id": "pf7Lmwh5V28tUCpr",
+            "name": "BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "tableId": "sessions",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "chat_id",
+                "condition": "eq",
+                "keyValue": "={{ $('Code - Parse Gemini').item.json.chatId }}"
+              }
+            ]
+          },
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "step",
+                "fieldValue": "collecting_photos"
+              },
+              {
+                "fieldId": "rooms_json",
+                "fieldValue": "={{ JSON.stringify($json.rooms_json) }}"
+              },
+              {
+                "fieldId": "shots_json",
+                "fieldValue": "={{ JSON.stringify($json.shots_json) }}"
+              },
+              {
+                "fieldId": "shots_status",
+                "fieldValue": "={{ JSON.stringify($json.shots_status) }}"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          3328,
+          608
+        ],
+        "id": "2cb84681-f748-4ccd-be55-7da7d1a2ec95",
+        "name": "Supabase - Save Analysis",
+        "credentials": {
+          "supabaseApi": {
+            "id": "G3gtUOBUeFqG3cuE",
+            "name": "DB_BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $('Code - Parse Gemini').item.json.chatId }}",
+          "text": "={{ $('Code - Parse Gemini').item.json.first_instruction }}",
+          "additionalFields": {
+            "appendAttribution": false,
+            "parse_mode": "HTML"
+          }
+        },
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          3568,
+          608
+        ],
+        "id": "76283c6f-fdfb-42aa-a31a-63edfe70b397",
+        "name": "Telegram - First Shot Instruction",
+        "webhookId": "cc03fc0a-bb88-4f6a-91ce-a378f2163586",
+        "credentials": {
+          "telegramApi": {
+            "id": "xojHoW6Kk0xyayrX",
+            "name": "Telegram account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "resource": "file",
+          "fileId": "={{ $json.file_id }}",
+          "additionalFields": {}
+        },
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          1120,
+          1264
+        ],
+        "id": "b80751d4-4483-408d-bc2b-67ca740b0bc8",
+        "name": "Get Photo for Shot",
+        "webhookId": "a669b904-d19e-412a-b724-5fa827fa8cfb",
+        "credentials": {
+          "telegramApi": {
+            "id": "xojHoW6Kk0xyayrX",
+            "name": "Telegram account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "const session = $('Get a row1').first().json;\nconst chatId  = $('Telegram Trigger').first().json.message.chat.id;\n\nconst shotsStatus = typeof session.shots_status === 'string'\n  ? JSON.parse(session.shots_status) : (session.shots_status || {});\nconst shots = typeof session.shots_json === 'string'\n  ? JSON.parse(session.shots_json) : (session.shots_json || []);\n\nconst requestedShotId = Object.keys(shotsStatus).find(id => shotsStatus[id] === 'requested');\nif (!requestedShotId) {\n  throw new Error('Нет активной точки съёмки. Введите /start для перезапуска.');\n}\n\nconst updatedStatus = { ...shotsStatus };\nupdatedStatus[requestedShotId] = 'received';\n\nconst nextShot = shots.find(s => updatedStatus[s.shot_id] === 'pending');\nconst allDone  = !nextShot;\nlet nextStatus = { ...updatedStatus };\nlet nextMessage = '';\n\n// HTML-escape dynamic content from LLM\nfunction h(s) {\n  return String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');\n}\n\nif (!allDone) {\n  nextStatus[nextShot.shot_id] = 'requested';\n  const total     = shots.length;\n  const shotIndex = shots.findIndex(s => s.shot_id === nextShot.shot_id) + 1;\n  nextMessage = '📷 <b>Фото ' + shotIndex + ' из ' + total + '</b>\\n\\n'\n    + '🏠 ' + h(nextShot.room_name) + '\\n'\n    + '📍 Позиция: ' + h(nextShot.position) + '\\n'\n    + '➡️ Направление: ' + h(nextShot.direction) + '\\n\\n'\n    + h(nextShot.instruction) + '\\n\\n'\n    + '<i>Отправьте фото как документ/файл — это сохраняет качество</i>';\n} else {\n  nextMessage = '✅ Все фотографии получены!\\n\\nНачинаю финальный анализ перепланировки. Это займёт 1-2 минуты...';\n}\n\nreturn [{\n  json: {\n    chatId,\n    current_shot_id: requestedShotId,\n    shots_status:    nextStatus,\n    all_done:        allDone,\n    next_message:    nextMessage,\n    upload_path:     'photos/' + chatId + '/' + requestedShotId + '.jpg'\n  },\n  binary: items[0].binary\n}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1360,
+          1264
+        ],
+        "id": "67da245a-afe4-4749-9df0-af5c7c8991dc",
+        "name": "Code - Process Shot"
+      },
+      {
+        "parameters": {
+          "method": "PUT",
+          "url": "=https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/bti-files/{{ $('Code - Process Shot').item.json.upload_path }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer SUPABASE_SERVICE_ROLE_KEY"
+              },
+              {
+                "name": "Content-Type",
+                "value": "image/jpeg"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "binaryData",
+          "inputDataFieldName": "data",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          1600,
+          1264
+        ],
+        "id": "7589283f-02cf-4e1a-a838-e63550453ba8",
+        "name": "HTTP Request - Upload Photo"
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "tableId": "sessions",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "chat_id",
+                "condition": "eq",
+                "keyValue": "={{ $('Code - Process Shot').item.json.chatId }}"
+              }
+            ]
+          },
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "shots_status",
+                "fieldValue": "={{ JSON.stringify($('Code - Process Shot').item.json.shots_status) }}"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          1840,
+          1264
+        ],
+        "id": "d9a61a62-0af3-4d77-b50a-8c22ac53fe92",
+        "name": "Supabase - Save Shot Status",
+        "credentials": {
+          "supabaseApi": {
+            "id": "G3gtUOBUeFqG3cuE",
+            "name": "DB_BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "4e35d0dd-5988-407f-a8f6-1d9fdfa61a01",
+                "leftValue": "={{ $('Code - Process Shot').item.json.all_done }}",
+                "rightValue": true,
+                "operator": {
+                  "type": "boolean",
+                  "operation": "true",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          2080,
+          1264
+        ],
+        "id": "e61d3e38-db2d-4d1e-ad16-72a7f1fa8699",
+        "name": "If - All Shots Done"
+      },
+      {
+        "parameters": {
+          "operation": "update",
+          "tableId": "sessions",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "chat_id",
+                "condition": "eq",
+                "keyValue": "={{ $('Code - Process Shot').item.json.chatId }}"
+              }
+            ]
+          },
+          "fieldsUi": {
+            "fieldValues": [
+              {
+                "fieldId": "step",
+                "fieldValue": "photos_complete"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          2320,
+          1136
+        ],
+        "id": "e539baa3-9faa-4d6d-9af6-29495fa23f4c",
+        "name": "Supabase - Photos Complete",
+        "credentials": {
+          "supabaseApi": {
+            "id": "G3gtUOBUeFqG3cuE",
+            "name": "DB_BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $('Code - Process Shot').item.json.chatId }}",
+          "text": "={{ $('Code - Process Shot').item.json.next_message }}",
+          "additionalFields": {
+            "appendAttribution": false
+          }
+        },
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          2560,
+          1136
+        ],
+        "id": "147d6086-2898-4e54-a8a9-41776e6f342d",
+        "name": "Telegram - All Photos Done",
+        "webhookId": "ddf4f39c-33a3-4af4-9660-952549e98201",
+        "credentials": {
+          "telegramApi": {
+            "id": "xojHoW6Kk0xyayrX",
+            "name": "Telegram account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $('Code - Process Shot').item.json.chatId }}",
+          "text": "={{ $('Code - Process Shot').item.json.next_message }}",
+          "additionalFields": {
+            "appendAttribution": false,
+            "parse_mode": "HTML"
+          }
+        },
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          2320,
+          1408
+        ],
+        "id": "23224734-50de-4041-a12e-5a65e6449d78",
+        "name": "Telegram - Next Shot",
+        "webhookId": "2de7eec5-d141-4c67-a4c2-5ae8f6f7d0d1",
+        "credentials": {
+          "telegramApi": {
+            "id": "xojHoW6Kk0xyayrX",
+            "name": "Telegram account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Binary data is received from HTTP Request - Download Plan node\n// n8n stores binary as base64 in item.binary[key].data\nconst binary = $input.first().binary;\nconst key = Object.keys(binary)[0];\nconst base64 = binary[key].data;\nconst mimeType = binary[key].mimeType || 'image/jpeg';\n\nif (!base64) throw new Error('Binary data is empty — plan not found in Supabase');\n\nreturn [{ json: { base64, mimeType } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1744,
+          608
+        ],
+        "id": "code-extract-base64-bti",
+        "name": "Code - Extract Base64"
+      },
+      {
+        "parameters": {},
+        "type": "n8n-nodes-base.manualTrigger",
+        "typeVersion": 1,
+        "position": [
+          -1008,
+          2400
+        ],
+        "id": "e0675d70-7df3-432e-83c6-e8e567ab5da3",
+        "name": "Manual Trigger - RAG"
+      },
+      {
+        "parameters": {
+          "jsCode": "// Загрузи эти PDF в Supabase Storage: bti-files/knowledge-base/\n// normy.pdf   → Чек лист нормы перепланировок\n// katalog.pdf → Каталог типовых решений перепланировок\n// razmery.pdf → Чек лист допустимые размеры помещений\nreturn [\n  { json: { path: 'knowledge-base/normy.pdf',   source: 'Чек лист нормы перепланировок' } },\n  { json: { path: 'knowledge-base/katalog.pdf',  source: 'Каталог типовых решений перепланировок' } },\n  { json: { path: 'knowledge-base/razmery.pdf',  source: 'Чек лист допустимые размеры помещений' } }\n];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          -736,
+          2400
+        ],
+        "id": "ce26f49b-754a-45f8-8736-46c2b3480cb6",
+        "name": "Code - PDF Sources"
+      },
+      {
+        "parameters": {
+          "url": "=https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/bti-files/{{ $json.path }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer SUPABASE_SERVICE_ROLE_KEY"
+              }
+            ]
+          },
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "file"
+              }
+            }
+          }
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          -480,
+          2400
+        ],
+        "id": "cd773f7b-b65e-4ef6-8cdd-b26a10be7d1a",
+        "name": "HTTP Request - Download PDF"
+      },
+      {
+        "parameters": {
+          "operation": "pdf",
+          "options": {
+            "joinPages": true
+          }
+        },
+        "type": "n8n-nodes-base.extractFromFile",
+        "typeVersion": 1.1,
+        "position": [
+          -224,
+          2400
+        ],
+        "id": "5f28ce2f-0acf-4c00-8b30-e745a7b4a1be",
+        "name": "Extract from File - PDF"
+      },
+      {
+        "parameters": {
+          "jsCode": "const text   = $input.first().json.text || '';\nconst source = $('Code - PDF Sources').item?.json?.source || 'unknown';\n\nconst MAX_CHARS = 80000;\nconst truncated = text.length > MAX_CHARS\n  ? text.substring(0, MAX_CHARS) + '\\n[\\u0442\\u0435\\u043a\\u0441\\u0442 \\u043e\\u0431\\u0440\\u0435\\u0437\\u0430\\u043d]'\n  : text;\n\nconst systemMsg = '\\u0422\\u044b \\u2014 \\u044d\\u043a\\u0441\\u043f\\u0435\\u0440\\u0442 \\u043f\\u043e \\u0440\\u043e\\u0441\\u0441\\u0438\\u0439\\u0441\\u043a\\u043e\\u043c\\u0443 \\u0436\\u0438\\u043b\\u0438\\u0449\\u043d\\u043e\\u043c\\u0443 \\u0437\\u0430\\u043a\\u043e\\u043d\\u043e\\u0434\\u0430\\u0442\\u0435\\u043b\\u044c\\u0441\\u0442\\u0432\\u0443.';\nconst userMsg = '\\u0422\\u0435\\u0431\\u0435 \\u0434\\u0430\\u043d \\u0442\\u0435\\u043a\\u0441\\u0442 \\u043d\\u043e\\u0440\\u043c\\u0430\\u0442\\u0438\\u0432\\u043d\\u043e\\u0433\\u043e \\u0434\\u043e\\u043a\\u0443\\u043c\\u0435\\u043d\\u0442\\u0430: \"' + source + '\".\\n'\n  + '\\u0420\\u0430\\u0437\\u0434\\u0435\\u043b\\u0438 \\u0442\\u0435\\u043a\\u0441\\u0442 \\u043d\\u0430 \\u0441\\u043c\\u044b\\u0441\\u043b\\u043e\\u0432\\u044b\\u0435 \\u0431\\u043b\\u043e\\u043a\\u0438 \\u043f\\u043e \\u043f\\u0440\\u0430\\u0432\\u0438\\u043b\\u0430\\u043c:\\n'\n  + '- \\u041a\\u0430\\u0436\\u0434\\u044b\\u0439 \\u0431\\u043b\\u043e\\u043a = \\u043e\\u0434\\u043d\\u0430 \\u0441\\u0442\\u0430\\u0442\\u044c\\u044f, \\u043f\\u0443\\u043d\\u043a\\u0442, \\u043f\\u043e\\u0434\\u043f\\u0443\\u043d\\u043a\\u0442 \\u0438\\u043b\\u0438 \\u043b\\u043e\\u0433\\u0438\\u0447\\u0435\\u0441\\u043a\\u0438 \\u0437\\u0430\\u0432\\u0435\\u0440\\u0448\\u0451\\u043d\\u043d\\u044b\\u0439 \\u0440\\u0430\\u0437\\u0434\\u0435\\u043b\\n'\n  + '- \\u041d\\u0415 \\u0440\\u0435\\u0436\\u044c \\u043f\\u043e \\u0441\\u0442\\u0440\\u0430\\u043d\\u0438\\u0446\\u0430\\u043c \\u2014 \\u0442\\u043e\\u043b\\u044c\\u043a\\u043e \\u043f\\u043e \\u0441\\u043c\\u044b\\u0441\\u043b\\u043e\\u0432\\u044b\\u043c \\u0433\\u0440\\u0430\\u043d\\u0438\\u0446\\u0430\\u043c\\n'\n  + '- \\u041a\\u0430\\u0436\\u0434\\u044b\\u0439 \\u0431\\u043b\\u043e\\u043a \\u0441\\u0430\\u043c\\u043e\\u0434\\u043e\\u0441\\u0442\\u0430\\u0442\\u043e\\u0447\\u0435\\u043d (\\u043f\\u043e\\u043d\\u044f\\u0442\\u0435\\u043d \\u0431\\u0435\\u0437 \\u043a\\u043e\\u043d\\u0442\\u0435\\u043a\\u0441\\u0442\\u0430)\\n'\n  + '- \\u041c\\u0438\\u043d\\u0438\\u043c\\u0443\\u043c: 3 \\u043f\\u0440\\u0435\\u0434\\u043b\\u043e\\u0436\\u0435\\u043d\\u0438\\u044f. \\u041c\\u0430\\u043a\\u0441\\u0438\\u043c\\u0443\\u043c: ~500 \\u0441\\u043b\\u043e\\u0432.\\n'\n  + '\\u0412\\u0435\\u0440\\u043d\\u0438 ONLY valid JSON (no markdown):\\n'\n  + '{\"chunks\": [{\"title\": \"\\u043d\\u043e\\u043c\\u0435\\u0440/\\u0437\\u0430\\u0433\\u043e\\u043b\\u043e\\u0432\\u043e\\u043a\", \"chunk\": \"\\u043f\\u043e\\u043b\\u043d\\u044b\\u0439 \\u0442\\u0435\\u043a\\u0441\\u0442 \\u0431\\u043b\\u043e\\u043a\\u0430\"}]}\\n'\n  + '\\n\\u0422\\u0435\\u043a\\u0441\\u0442 \\u0434\\u043e\\u043a\\u0443\\u043c\\u0435\\u043d\\u0442\\u0430:\\n' + truncated;\n\nconst body = {\n  model: 'gpt-4o-mini',\n  messages: [\n    { role: 'system', content: systemMsg },\n    { role: 'user',   content: userMsg }\n  ],\n  response_format: { type: 'json_object' },\n  temperature: 0.1\n};\n\nreturn [{ json: { source, requestBody: JSON.stringify(body) } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          48,
+          2400
+        ],
+        "id": "7ad625f0-42db-435c-9ce3-ee070b341379",
+        "name": "Code - Prep Chunking Request"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.openai.com/v1/chat/completions",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer OPENAI_API_KEY"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ $json.requestBody }}",
+          "options": {
+            "timeout": 120000
+          }
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          304,
+          2400
+        ],
+        "id": "4d991a87-b585-4661-acb4-53d595c504d6",
+        "name": "HTTP Request - GPT Chunking"
+      },
+      {
+        "parameters": {
+          "jsCode": "const resp   = $input.first().json;\nconst source = $('Code - PDF Sources').item?.json?.source || 'unknown';\n\nlet chunks = [];\ntry {\n  // OpenAI: resp.choices[0].message.content\n  const raw    = resp.choices?.[0]?.message?.content || '';\n  const parsed = JSON.parse(raw);\n  chunks = parsed.chunks || parsed.items || (Array.isArray(parsed) ? parsed : []);\n} catch(e) {\n  throw new Error('\\u041e\\u0448\\u0438\\u0431\\u043a\\u0430 \\u043f\\u0430\\u0440\\u0441\\u0438\\u043d\\u0433\\u0430 GPT: ' + e.message);\n}\n\nif (!chunks.length) throw new Error('GPT \\u0432\\u0435\\u0440\\u043d\\u0443\\u043b \\u043f\\u0443\\u0441\\u0442\\u043e\\u0439 \\u0441\\u043f\\u0438\\u0441\\u043e\\u043a \\u0447\\u0430\\u043d\\u043a\\u043e\\u0432 \\u0434\\u043b\\u044f: ' + source);\n\nreturn chunks.map((c, i) => ({\n  json: {\n    source,\n    title: c.title || ('\\u0411\\u043b\\u043e\\u043a ' + (i + 1)),\n    chunk: c.chunk || c.text || c.content || '',\n    index: i\n  }\n}));"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          560,
+          2400
+        ],
+        "id": "58055f7f-a8f3-48ea-950c-f479bd6733e7",
+        "name": "Code - Parse Chunks"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.openai.com/v1/embeddings",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer OPENAI_API_KEY"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify({\"input\": $json.chunk,\"model\": \"text-embedding-3-small\"}) }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          832,
+          2400
+        ],
+        "id": "c0a1ea43-a4e8-46d6-8455-7b90e63a558d",
+        "name": "HTTP Request - Embed Chunk"
+      },
+      {
+        "parameters": {
+          "jsCode": "const embResp = $input.first().json;\n// OpenAI embeddings: { data: [{ embedding: [...1536 floats...] }] }\nconst embedding = embResp.data?.[0]?.embedding;\nif (!embedding) throw new Error('OpenAI \\u043d\\u0435 \\u0432\\u0435\\u0440\\u043d\\u0443\\u043b embedding: ' + JSON.stringify(embResp).substring(0, 200));\n\nconst chunkData = $('Code - Parse Chunks').item.json;\n\nreturn [{\n  json: {\n    source:    chunkData.source,\n    chunk:     chunkData.chunk,\n    embedding: embedding\n  }\n}];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          1088,
+          2400
+        ],
+        "id": "9c65eb16-c07b-4d50-bdeb-632facc043f3",
+        "name": "Code - Prep Embedding Record"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/embeddings",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer SUPABASE_SERVICE_ROLE_KEY"
+              },
+              {
+                "name": "apikey",
+                "value": "SUPABASE_SERVICE_ROLE_KEY"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Prefer",
+                "value": "return=minimal"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify({\"source\": $json.source,\"chunk\":  $json.chunk,\"embedding\": $json.embedding}) }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          1344,
+          2400
+        ],
+        "id": "216800f6-83ce-45a6-b005-902581626334",
+        "name": "HTTP Request - Insert Embedding"
+      },
+      {
+        "parameters": {
+          "aggregate": "aggregateAllItemData",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.aggregate",
+        "typeVersion": 1,
+        "position": [
+          1600,
+          2400
+        ],
+        "id": "2326917d-38fd-47ce-9adc-7dca1de3abc3",
+        "name": "Aggregate - Count Inserted"
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $('Telegram Trigger').first()?.json?.message?.chat?.id || 'REPLACE_WITH_YOUR_CHAT_ID' }}",
+          "text": "={{ '✅ RAG база знаний загружена!\\n\\nВставлено чанков: ' + $json.data.length }}",
+          "additionalFields": {
+            "appendAttribution": false
+          }
+        },
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          1872,
+          2400
+        ],
+        "id": "30890971-dde2-416b-a0b1-ed3839820b86",
+        "name": "Telegram - RAG Complete",
+        "webhookId": "0746f523-11a5-41e7-bc38-84421365f0b9",
+        "credentials": {
+          "telegramApi": {
+            "id": "xojHoW6Kk0xyayrX",
+            "name": "Telegram account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "url": "=https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/plans/{{ $('Telegram Trigger').first().json.message.chat.id }}/plan.png",
+          "options": {
+            "response": {
+              "response": {
+                "responseFormat": "file"
+              }
+            }
+          }
+        },
+        "id": "http-download-plan-bti",
+        "name": "HTTP Request - Download Plan",
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.2,
+        "position": [
+          1536,
+          608
+        ]
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                "leftValue": "={{$('Telegram Trigger').item.json.message.photo}}",
+                "rightValue": "",
+                "operator": {
+                  "type": "array",
+                  "operation": "exists",
+                  "singleValue": true
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          592,
+          1040
+        ],
+        "id": "if-photo-shot-check-0001",
+        "name": "If - Is Photo Shot"
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+          "text": "Внимание! Telegram сжимает фото, качество снижается. Для лучшего результата отправляйте фото как файл/документ. Фото принято.",
+          "additionalFields": {
+            "appendAttribution": false
+          }
+        },
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          912,
+          1024
+        ],
+        "id": "telegram-photo-warning-shot",
+        "name": "Telegram - Photo Warning Shot",
+        "webhookId": "b1c2d3e4-f5a6-7890-bcde-fa1234567890",
+        "credentials": {
+          "telegramApi": {
+            "id": "pf7Lmwh5V28tUCpr",
+            "name": "BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "// Build a descriptive query for RAG search\n// In Phase 2 (Tue 24.03) this will use rooms_json from session\nconst chatId = $('Code - Process Shot').item.json.chatId;\n\nconst queryText = 'перепланировка квартиры: снос стен, объединение комнат, изменение проёмов, перенос санузла, изменение мокрых зон, несущие конструкции, допустимые размеры помещений';\n\nreturn [{ json: { chatId: chatId, queryText: queryText } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          2800,
+          1136
+        ],
+        "id": "rag-prep-query-node-001",
+        "name": "Code - Prepare RAG Query"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.openai.com/v1/embeddings",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer OPENAI_API_KEY"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify({\"input\": $json.queryText, \"model\": \"text-embedding-3-small\"}) }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          3040,
+          1136
+        ],
+        "id": "rag-embed-query-node-001",
+        "name": "HTTP Request - Embed Query"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/rpc/match_embeddings",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer SUPABASE_SERVICE_ROLE_KEY"
+              },
+              {
+                "name": "apikey",
+                "value": "SUPABASE_SERVICE_ROLE_KEY"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify({\"query_embedding\": $json.data[0].embedding, \"match_count\": 5}) }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          3280,
+          1136
+        ],
+        "id": "rag-search-node-001",
+        "name": "HTTP Request - RAG Search"
+      },
+      {
+        "parameters": {
+          "jsCode": "const fragments = $input.all().map(item => item.json);\n// fragments is array of {id, source, chunk, similarity}\n\nif (!fragments || fragments.length === 0) {\n  return [{ json: { ragContext: '', fragmentCount: 0 } }];\n}\n\nconst ragContext = fragments.map(f => f.chunk).join('\\n---\\n');\nconst fragmentCount = fragments.length;\n\n// Log for debugging\nconsole.log('RAG: retrieved ' + fragmentCount + ' fragments');\nfragments.forEach((f, i) => {\n  console.log('  [' + i + '] source=' + f.source + ', similarity=' + (f.similarity || 0).toFixed(3));\n});\n\nreturn [{ json: { ragContext: ragContext, fragmentCount: fragmentCount } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          3520,
+          1136
+        ],
+        "id": "rag-format-results-node-001",
+        "name": "Code - Format RAG Results"
+      },
+      {
+        "parameters": {
+          "operation": "get",
+          "tableId": "sessions",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "chat_id",
+                "keyValue": "={{ $('Telegram Trigger').item.json.message.chat.id }}"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          -160,
+          960
+        ],
+        "id": "get-text-session-node-001",
+        "name": "Get a row - Text",
+        "alwaysOutputData": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "G3gtUOBUeFqG3cuE",
+            "name": "DB_BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "conditions": {
+            "options": {
+              "caseSensitive": true,
+              "leftValue": "",
+              "typeValidation": "strict",
+              "version": 3
+            },
+            "conditions": [
+              {
+                "id": "text-pc-if-cond-001",
+                "leftValue": "={{ $json.step }}",
+                "rightValue": "photos_complete",
+                "operator": {
+                  "type": "string",
+                  "operation": "equals"
+                }
+              }
+            ],
+            "combinator": "and"
+          },
+          "options": {}
+        },
+        "type": "n8n-nodes-base.if",
+        "typeVersion": 2.3,
+        "position": [
+          16,
+          960
+        ],
+        "id": "if-text-step-pc-node-001",
+        "name": "If - Text Step Photos Complete"
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+          "text": "Пожалуйста, подождите. Анализ фотографий выполняется. Это займёт 1–2 минуты.",
+          "additionalFields": {
+            "appendAttribution": false
+          }
+        },
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          256,
+          944
+        ],
+        "id": "telegram-analysis-progress-text-001",
+        "name": "Telegram - Analysis In Progress Text",
+        "webhookId": "b909894e-8797-4b5b-8111-fed8f1793a1d",
+        "credentials": {
+          "telegramApi": {
+            "id": "xojHoW6Kk0xyayrX",
+            "name": "Telegram account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+          "text": "Анализ выполняется, пожалуйста, подождите. Отправка новых файлов невозможна во время анализа.",
+          "additionalFields": {
+            "appendAttribution": false
+          }
+        },
+        "type": "n8n-nodes-base.telegram",
+        "typeVersion": 1.2,
+        "position": [
+          560,
+          1664
+        ],
+        "id": "telegram-analysis-progress-doc-001",
+        "name": "Telegram - Analysis In Progress Doc",
+        "webhookId": "12f8dbf1-5793-4fd1-9895-89aa6bdc05dd",
+        "credentials": {
+          "telegramApi": {
+            "id": "xojHoW6Kk0xyayrX",
+            "name": "Telegram account"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "operation": "get",
+          "tableId": "sessions",
+          "filters": {
+            "conditions": [
+              {
+                "keyName": "chat_id",
+                "keyValue": "={{ $('Code - Prepare RAG Query').item.json.chatId }}"
+              }
+            ]
+          }
+        },
+        "type": "n8n-nodes-base.supabase",
+        "typeVersion": 1,
+        "position": [
+          3760,
+          1136
+        ],
+        "id": "get-analysis-session-node-001",
+        "name": "Supabase - Get Analysis Session",
+        "alwaysOutputData": true,
+        "credentials": {
+          "supabaseApi": {
+            "id": "G3gtUOBUeFqG3cuE",
+            "name": "DB_BTI_BOT"
+          }
+        }
+      },
+      {
+        "parameters": {
+          "jsCode": "var chatId = $('Code - Prepare RAG Query').item.json.chatId;\nvar ragContext = $('Code - Format RAG Results').item.json.ragContext || '';\nvar session = $('Supabase - Get Analysis Session').item.json;\nvar planUrl = session.plan_url || '';\nvar shotsJson = session.shots_json || [];\nvar shotsStatus = session.shots_status || {};\n\nvar SUPABASE_STORAGE = 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/photos/';\n\n// Build photo URLs for received shots (preserving order from shots_json)\nvar photoItems = [];\nfor (var i = 0; i < shotsJson.length; i++) {\n  var shot = shotsJson[i];\n  var shotId = shot.shot_id || shot.id || '';\n  var status = shotsStatus[shotId] || '';\n  if (status === 'received' && shotId) {\n    photoItems.push(SUPABASE_STORAGE + chatId + '/' + shotId + '.jpg');\n  }\n}\n\nvar systemPrompt = 'Ты - эксперт по проверке перепланировок квартир в России. '+ 'Анализируй план БТИ и фотографии, определяй отклонения от плана. '+ 'Отвечай только на русском языке. '+ 'Всегда возвращай ответ строго в формате JSON без markdown-обертки.';\n\nvar userText = 'НОРМАТИВЫ ИЗ БАЗЫ ЗНАНИЙ:\\n' + ragContext + '\\n\\n---\\n\\n'+ 'Задание: Проанализируй план БТИ (первое изображение) и фотографии комнат.\\n\\n'+ 'Определи наличие перепланировок, которые отличаются от плана БТИ.\\n'+ 'Классифицируй каждое изменение по нормативам.\\n\\n'+ 'Верни JSON строго в формате:\\n'+ '{\"confidence\": <0-1>, \"changes\": [{\"room_id\": \"...\", \"type\": \"...\", \"description\": \"...\", \"classification\": \"legal|requires_approval|illegal\", \"recommendation\": \"...\"}], \"summary\": \"...\"}\\n\\n'+ 'Классификации: legal - изменений нет или разрешено, requires_approval - требует согласования, illegal - незаконно (несущие стены, мокрые зоны, газ).\\n'+ 'Если перепланировок нет - верни пустой массив changes, confidence близкий к 1.';\n\nvar contentArray = [{ type: 'text', text: userText }];\nif (planUrl) {\n  contentArray.push({ type: 'image_url', image_url: { url: planUrl, detail: 'high' } });\n}\nfor (var j = 0; j < photoItems.length; j++) {\n  contentArray.push({ type: 'image_url', image_url: { url: photoItems[j], detail: 'high' } });\n}\n\nvar body = {\n  model: 'gpt-4o',\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user', content: contentArray }\n  ],\n  max_tokens: 2000,\n  response_format: { type: 'json_object' }\n};\n\nreturn [{ json: { chatId: chatId, body: JSON.stringify(body), photoCount: photoItems.length } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          4000,
+          1136
+        ],
+        "id": "build-gpt4o-payload-node-001",
+        "name": "Code - Build GPT4o Payload"
+      },
+      {
+        "parameters": {
+          "method": "POST",
+          "url": "https://api.openai.com/v1/chat/completions",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer OPENAI_API_KEY"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ $json.body }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          4240,
+          1136
+        ],
+        "id": "http-gpt4o-node-001",
+        "name": "HTTP Request - GPT4o"
+      },
+      {
+        "parameters": {
+          "jsCode": "var chatId = $('Code - Build GPT4o Payload').item.json.chatId;\nvar responseContent = '';\ntry {\n  responseContent = $json.choices[0].message.content;\n} catch(e) {\n  responseContent = JSON.stringify($json);\n}\n\nvar analysisResult;\ntry {\n  analysisResult = JSON.parse(responseContent);\n} catch(e) {\n  analysisResult = {\n    confidence: 0,\n    changes: [],\n    summary: 'Ошибка парсинга ответа GPT-4o: ' + responseContent.substring(0, 200)\n  };\n}\n\n// Normalize fields\nif (!analysisResult.changes) { analysisResult.changes = []; }\nif (typeof analysisResult.confidence === 'undefined') { analysisResult.confidence = 0.5; }\nif (!analysisResult.summary) { analysisResult.summary = ''; }\n\nreturn [{ json: { chatId: chatId, analysis_result: analysisResult } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          4480,
+          1136
+        ],
+        "id": "parse-gpt4o-node-001",
+        "name": "Code - Parse GPT4o Response"
+      },
+      {
+        "parameters": {
+          "method": "PATCH",
+          "url": "https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/sessions?chat_id=eq.{{ $json.chatId }}",
+          "sendHeaders": true,
+          "headerParameters": {
+            "parameters": [
+              {
+                "name": "Authorization",
+                "value": "Bearer SUPABASE_SERVICE_ROLE_KEY"
+              },
+              {
+                "name": "apikey",
+                "value": "SUPABASE_SERVICE_ROLE_KEY"
+              },
+              {
+                "name": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "name": "Prefer",
+                "value": "return=minimal"
+              }
+            ]
+          },
+          "sendBody": true,
+          "contentType": "raw",
+          "rawContentType": "application/json",
+          "body": "={{ JSON.stringify({ analysis_result: $json.analysis_result, step: 'analysis_complete', updated_at: new Date().toISOString() }) }}",
+          "options": {}
+        },
+        "type": "n8n-nodes-base.httpRequest",
+        "typeVersion": 4.3,
+        "position": [
+          4720,
+          1136
+        ],
+        "id": "save-analysis-result-node-001",
+        "name": "HTTP Request - Save Analysis Result"
+      },
+      {
+        "parameters": {
+          "jsCode": "const msg = $('Telegram Trigger').first().json.message;\nvar fileId;\nif (msg.document) {\n  fileId = msg.document.file_id;\n} else {\n  var photos = msg.photo;\n  fileId = photos[photos.length - 1].file_id;\n}\nreturn [{ json: { file_id: fileId } }];"
+        },
+        "type": "n8n-nodes-base.code",
+        "typeVersion": 2,
+        "position": [
+          940,
+          1264
+        ],
+        "id": "code-extract-file-id-0001",
+        "name": "Code - Extract File ID"
+      }
+    ],
+    "connections": {
+      "Telegram Trigger": {
+        "main": [
+          [
+            {
+              "node": "Get many rows",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Switch": {
+        "main": [
+          [
+            {
+              "node": "Send a text message",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Get a row1",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Get a row - Text",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Get a row3",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Send a text message": {
+        "main": [
+          [
+            {
+              "node": "Get a row",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get many rows": {
+        "main": [
+          [
+            {
+              "node": "If",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "If": {
+        "main": [
+          [
+            {
+              "node": "Send a text message1",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Switch",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get a row": {
+        "main": [
+          [
+            {
+              "node": "If1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "If1": {
+        "main": [
+          [
+            {
+              "node": "Create a row",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Update a row",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get a row1": {
+        "main": [
+          [
+            {
+              "node": "Switch1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get a row3": {
+        "main": [
+          [
+            {
+              "node": "Switch3",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Switch1": {
+        "main": [
+          [
+            {
+              "node": "If2",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "If - Is Photo Shot",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Telegram - Analysis In Progress Doc",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "If2": {
+        "main": [
+          [
+            {
+              "node": "Send a text message6",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "If3",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Update a row1": {
+        "main": [
+          [
+            {
+              "node": "Send a text message5",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "If3": {
+        "main": [
+          [
+            {
+              "node": "Get a file",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Send a text message3",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Send a text message6": {
+        "main": [
+          [
+            {
+              "node": "Get a file",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get a file": {
+        "main": [
+          [
+            {
+              "node": "HTTP Request1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HTTP Request1": {
+        "main": [
+          [
+            {
+              "node": "HTTP Request - Download Plan",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Send a text message5": {
+        "main": [
+          [
+            {
+              "node": "Code - Gemini Request",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code - Gemini Request": {
+        "main": [
+          [
+            {
+              "node": "HTTP Request - Gemini",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HTTP Request - Gemini": {
+        "main": [
+          [
+            {
+              "node": "Code - Parse Gemini",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code - Parse Gemini": {
+        "main": [
+          [
+            {
+              "node": "Telegram - Plan Analyzed",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Telegram - Plan Analyzed": {
+        "main": [
+          [
+            {
+              "node": "Supabase - Save Analysis",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Supabase - Save Analysis": {
+        "main": [
+          [
+            {
+              "node": "Telegram - First Shot Instruction",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get Photo for Shot": {
+        "main": [
+          [
+            {
+              "node": "Code - Process Shot",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code - Process Shot": {
+        "main": [
+          [
+            {
+              "node": "HTTP Request - Upload Photo",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HTTP Request - Upload Photo": {
+        "main": [
+          [
+            {
+              "node": "Supabase - Save Shot Status",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Supabase - Save Shot Status": {
+        "main": [
+          [
+            {
+              "node": "If - All Shots Done",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "If - All Shots Done": {
+        "main": [
+          [
+            {
+              "node": "Supabase - Photos Complete",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Telegram - Next Shot",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Supabase - Photos Complete": {
+        "main": [
+          [
+            {
+              "node": "Telegram - All Photos Done",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code - Extract Base64": {
+        "main": [
+          [
+            {
+              "node": "Update a row1",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Manual Trigger - RAG": {
+        "main": [
+          [
+            {
+              "node": "Code - PDF Sources",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code - PDF Sources": {
+        "main": [
+          [
+            {
+              "node": "HTTP Request - Download PDF",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HTTP Request - Download PDF": {
+        "main": [
+          [
+            {
+              "node": "Extract from File - PDF",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Extract from File - PDF": {
+        "main": [
+          [
+            {
+              "node": "Code - Prep Chunking Request",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code - Prep Chunking Request": {
+        "main": [
+          [
+            {
+              "node": "HTTP Request - GPT Chunking",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code - Parse Chunks": {
+        "main": [
+          [
+            {
+              "node": "HTTP Request - Embed Chunk",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HTTP Request - Embed Chunk": {
+        "main": [
+          [
+            {
+              "node": "Code - Prep Embedding Record",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code - Prep Embedding Record": {
+        "main": [
+          [
+            {
+              "node": "HTTP Request - Insert Embedding",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HTTP Request - Insert Embedding": {
+        "main": [
+          [
+            {
+              "node": "Aggregate - Count Inserted",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Aggregate - Count Inserted": {
+        "main": [
+          [
+            {
+              "node": "Telegram - RAG Complete",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HTTP Request - Download Plan": {
+        "main": [
+          [
+            {
+              "node": "Code - Extract Base64",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "If - Is Photo Shot": {
+        "main": [
+          [
+            {
+              "node": "Telegram - Photo Warning Shot",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Code - Extract File ID",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Telegram - Photo Warning Shot": {
+        "main": [
+          [
+            {
+              "node": "Code - Extract File ID",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HTTP Request - GPT Chunking": {
+        "main": [
+          [
+            {
+              "node": "Code - Parse Chunks",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code - Prepare RAG Query": {
+        "main": [
+          [
+            {
+              "node": "HTTP Request - Embed Query",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HTTP Request - Embed Query": {
+        "main": [
+          [
+            {
+              "node": "HTTP Request - RAG Search",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HTTP Request - RAG Search": {
+        "main": [
+          [
+            {
+              "node": "Code - Format RAG Results",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Telegram - All Photos Done": {
+        "main": [
+          [
+            {
+              "node": "Code - Prepare RAG Query",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Get a row - Text": {
+        "main": [
+          [
+            {
+              "node": "If - Text Step Photos Complete",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "If - Text Step Photos Complete": {
+        "main": [
+          [
+            {
+              "node": "Telegram - Analysis In Progress Text",
+              "type": "main",
+              "index": 0
+            }
+          ],
+          [
+            {
+              "node": "Send a text message4",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code - Format RAG Results": {
+        "main": [
+          [
+            {
+              "node": "Supabase - Get Analysis Session",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Supabase - Get Analysis Session": {
+        "main": [
+          [
+            {
+              "node": "Code - Build GPT4o Payload",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code - Build GPT4o Payload": {
+        "main": [
+          [
+            {
+              "node": "HTTP Request - GPT4o",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "HTTP Request - GPT4o": {
+        "main": [
+          [
+            {
+              "node": "Code - Parse GPT4o Response",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code - Parse GPT4o Response": {
+        "main": [
+          [
+            {
+              "node": "HTTP Request - Save Analysis Result",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      },
+      "Code - Extract File ID": {
+        "main": [
+          [
+            {
+              "node": "Get Photo for Shot",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
+      }
+    },
+    "authors": "Admin Admin",
+    "name": null,
+    "description": null,
+    "autosaved": false,
+    "workflowPublishHistory": [
+      {
+        "createdAt": "2026-03-20T10:31:49.975Z",
+        "id": 197,
+        "workflowId": "305RmoqLIGnuYonX",
+        "versionId": "e27d7da4-966a-473c-8255-55da57098792",
+        "event": "activated",
+        "userId": "22bd6d73-5378-4d79-97c5-c471d4c139b2"
+      },
+      {
+        "createdAt": "2026-03-20T10:31:56.663Z",
+        "id": 198,
+        "workflowId": "305RmoqLIGnuYonX",
+        "versionId": "e27d7da4-966a-473c-8255-55da57098792",
+        "event": "activated",
+        "userId": "22bd6d73-5378-4d79-97c5-c471d4c139b2"
+      }
+    ]
+  }
 }
