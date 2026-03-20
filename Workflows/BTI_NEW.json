@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-03-19T06:48:36.849Z",
+  "updatedAt": "2026-03-20T07:02:17.910Z",
   "createdAt": "2026-03-17T08:49:57.940Z",
   "id": "305RmoqLIGnuYonX",
   "name": "BTI_NEW",
@@ -406,7 +406,7 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        16,
+        32,
         688
       ],
       "id": "5f45d151-abf9-4e6f-88f1-e75777e4df77",
@@ -797,10 +797,10 @@
             }
           ]
         },
-        "options": {},
         "sendBody": true,
         "contentType": "binaryData",
-        "inputDataFieldName": "data"
+        "inputDataFieldName": "data",
+        "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
@@ -2003,60 +2003,10 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "d3997dff-5122-4044-9bbb-d3e38637c353",
+  "versionId": "a2fb03bb-f40b-4a00-8786-2eca57bce97d",
   "activeVersionId": null,
-  "versionCounter": 43,
+  "versionCounter": 48,
   "triggerCount": 1,
-  "shared": [
-    {
-      "updatedAt": "2026-03-17T08:49:57.940Z",
-      "createdAt": "2026-03-17T08:49:57.940Z",
-      "role": "workflow:owner",
-      "workflowId": "305RmoqLIGnuYonX",
-      "projectId": "nPWKYNF7nPyxhKb6",
-      "project": {
-        "updatedAt": "2026-02-23T20:24:29.123Z",
-        "createdAt": "2026-02-23T20:24:03.835Z",
-        "id": "nPWKYNF7nPyxhKb6",
-        "name": "Admin Admin <krivickiydaniilgomel@gmail.com>",
-        "type": "personal",
-        "icon": null,
-        "description": null,
-        "creatorId": "22bd6d73-5378-4d79-97c5-c471d4c139b2",
-        "projectRelations": [
-          {
-            "updatedAt": "2026-02-23T20:24:03.835Z",
-            "createdAt": "2026-02-23T20:24:03.835Z",
-            "userId": "22bd6d73-5378-4d79-97c5-c471d4c139b2",
-            "projectId": "nPWKYNF7nPyxhKb6",
-            "user": {
-              "updatedAt": "2026-03-20T06:37:01.506Z",
-              "createdAt": "2026-02-23T20:24:03.130Z",
-              "id": "22bd6d73-5378-4d79-97c5-c471d4c139b2",
-              "email": "krivickiydaniilgomel@gmail.com",
-              "firstName": "Admin",
-              "lastName": "Admin",
-              "personalizationAnswers": null,
-              "settings": {
-                "userActivated": true,
-                "easyAIWorkflowOnboarded": true,
-                "firstSuccessfulWorkflowId": "qHCvxJIgjvTps66A",
-                "userActivatedAt": 1771917549644,
-                "npsSurvey": {
-                  "responded": true,
-                  "lastShownAt": 1772735557136
-                }
-              },
-              "disabled": false,
-              "mfaEnabled": false,
-              "lastActiveAt": "2026-03-19",
-              "isPending": false
-            }
-          }
-        ]
-      }
-    }
-  ],
   "tags": [],
   "activeVersion": null
 }
