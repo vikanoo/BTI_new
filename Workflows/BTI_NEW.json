@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-03-20T07:45:43.177Z",
+  "updatedAt": "2026-03-20T07:56:07.952Z",
   "createdAt": "2026-03-17T08:49:57.940Z",
   "id": "305RmoqLIGnuYonX",
   "name": "BTI_NEW",
@@ -1275,7 +1275,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const text   = $input.first().json.text || '';\nconst source = $('Code - PDF Sources').item?.json?.source || 'unknown';\n\nconst MAX_CHARS = 80000;\nconst truncated = text.length > MAX_CHARS\n  ? text.substring(0, MAX_CHARS) + '\\n[текст обрезан]'\n  : text;\n\nconst userMessage = `Ты — эксперт по российскому жилищному законодательству.\nТебе дан текст нормативного документа: \"${source}\".\n\nРаздели текст на смысловые блоки по правилам:\n- Каждый блок = одна статья, пункт, подпункт или логически завершённый раздел\n- НЕ режь по страницам — только по смысловым границам\n- Каждый блок должен быть самодостаточным (понятен без контекста)\n- Минимум: 3 предложения. Максимум: ~500 слов.\n\nВерни ТОЛЬКО валидный JSON объект, без markdown:\n{\"chunks\": [{\"title\": \"номер/заголовок пункта\", \"chunk\": \"полный текст блока\"}]}\n\nТекст документа:\n${truncated}`;\n\n// Cohere Chat v2 request format\nconst body = {\n  model: 'command-r-plus-08-2024',\n  messages: [{ role: 'user', content: userMessage }],\n  response_format: { type: 'json_object' },\n  temperature: 0.1\n};\n\nreturn [{ json: { source, requestBody: JSON.stringify(body) } }];"
+        "jsCode": "const text   = $input.first().json.text || '';\nconst source = $('Code - PDF Sources').item?.json?.source || 'unknown';\n\nconst MAX_CHARS = 80000;\nconst truncated = text.length > MAX_CHARS\n  ? text.substring(0, MAX_CHARS) + '\\n[\\u0442\\u0435\\u043a\\u0441\\u0442 \\u043e\\u0431\\u0440\\u0435\\u0437\\u0430\\u043d]'\n  : text;\n\nconst systemMsg = '\\u0422\\u044b \\u2014 \\u044d\\u043a\\u0441\\u043f\\u0435\\u0440\\u0442 \\u043f\\u043e \\u0440\\u043e\\u0441\\u0441\\u0438\\u0439\\u0441\\u043a\\u043e\\u043c\\u0443 \\u0436\\u0438\\u043b\\u0438\\u0449\\u043d\\u043e\\u043c\\u0443 \\u0437\\u0430\\u043a\\u043e\\u043d\\u043e\\u0434\\u0430\\u0442\\u0435\\u043b\\u044c\\u0441\\u0442\\u0432\\u0443.';\nconst userMsg = '\\u0422\\u0435\\u0431\\u0435 \\u0434\\u0430\\u043d \\u0442\\u0435\\u043a\\u0441\\u0442 \\u043d\\u043e\\u0440\\u043c\\u0430\\u0442\\u0438\\u0432\\u043d\\u043e\\u0433\\u043e \\u0434\\u043e\\u043a\\u0443\\u043c\\u0435\\u043d\\u0442\\u0430: \"' + source + '\".\\n'\n  + '\\u0420\\u0430\\u0437\\u0434\\u0435\\u043b\\u0438 \\u0442\\u0435\\u043a\\u0441\\u0442 \\u043d\\u0430 \\u0441\\u043c\\u044b\\u0441\\u043b\\u043e\\u0432\\u044b\\u0435 \\u0431\\u043b\\u043e\\u043a\\u0438 \\u043f\\u043e \\u043f\\u0440\\u0430\\u0432\\u0438\\u043b\\u0430\\u043c:\\n'\n  + '- \\u041a\\u0430\\u0436\\u0434\\u044b\\u0439 \\u0431\\u043b\\u043e\\u043a = \\u043e\\u0434\\u043d\\u0430 \\u0441\\u0442\\u0430\\u0442\\u044c\\u044f, \\u043f\\u0443\\u043d\\u043a\\u0442, \\u043f\\u043e\\u0434\\u043f\\u0443\\u043d\\u043a\\u0442 \\u0438\\u043b\\u0438 \\u043b\\u043e\\u0433\\u0438\\u0447\\u0435\\u0441\\u043a\\u0438 \\u0437\\u0430\\u0432\\u0435\\u0440\\u0448\\u0451\\u043d\\u043d\\u044b\\u0439 \\u0440\\u0430\\u0437\\u0434\\u0435\\u043b\\n'\n  + '- \\u041d\\u0415 \\u0440\\u0435\\u0436\\u044c \\u043f\\u043e \\u0441\\u0442\\u0440\\u0430\\u043d\\u0438\\u0446\\u0430\\u043c \\u2014 \\u0442\\u043e\\u043b\\u044c\\u043a\\u043e \\u043f\\u043e \\u0441\\u043c\\u044b\\u0441\\u043b\\u043e\\u0432\\u044b\\u043c \\u0433\\u0440\\u0430\\u043d\\u0438\\u0446\\u0430\\u043c\\n'\n  + '- \\u041a\\u0430\\u0436\\u0434\\u044b\\u0439 \\u0431\\u043b\\u043e\\u043a \\u0441\\u0430\\u043c\\u043e\\u0434\\u043e\\u0441\\u0442\\u0430\\u0442\\u043e\\u0447\\u0435\\u043d (\\u043f\\u043e\\u043d\\u044f\\u0442\\u0435\\u043d \\u0431\\u0435\\u0437 \\u043a\\u043e\\u043d\\u0442\\u0435\\u043a\\u0441\\u0442\\u0430)\\n'\n  + '- \\u041c\\u0438\\u043d\\u0438\\u043c\\u0443\\u043c: 3 \\u043f\\u0440\\u0435\\u0434\\u043b\\u043e\\u0436\\u0435\\u043d\\u0438\\u044f. \\u041c\\u0430\\u043a\\u0441\\u0438\\u043c\\u0443\\u043c: ~500 \\u0441\\u043b\\u043e\\u0432.\\n'\n  + '\\u0412\\u0435\\u0440\\u043d\\u0438 ONLY valid JSON (no markdown):\\n'\n  + '{\"chunks\": [{\"title\": \"\\u043d\\u043e\\u043c\\u0435\\u0440/\\u0437\\u0430\\u0433\\u043e\\u043b\\u043e\\u0432\\u043e\\u043a\", \"chunk\": \"\\u043f\\u043e\\u043b\\u043d\\u044b\\u0439 \\u0442\\u0435\\u043a\\u0441\\u0442 \\u0431\\u043b\\u043e\\u043a\\u0430\"}]}\\n'\n  + '\\n\\u0422\\u0435\\u043a\\u0441\\u0442 \\u0434\\u043e\\u043a\\u0443\\u043c\\u0435\\u043d\\u0442\\u0430:\\n' + truncated;\n\nconst body = {\n  model: 'gpt-4o-mini',\n  messages: [\n    { role: 'system', content: systemMsg },\n    { role: 'user',   content: userMsg }\n  ],\n  response_format: { type: 'json_object' },\n  temperature: 0.1\n};\n\nreturn [{ json: { source, requestBody: JSON.stringify(body) } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1289,17 +1289,17 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.cohere.com/v2/chat",
+        "url": "https://api.openai.com/v1/chat/completions",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer REPLACE_WITH_COHERE_API_KEY"
+              "value": "Bearer OPENAI_API_KEY"
             },
             {
-              "name": "X-Client-Name",
-              "value": "BTI-Bot"
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
@@ -1318,11 +1318,11 @@
         2400
       ],
       "id": "4d991a87-b585-4661-acb4-53d595c504d6",
-      "name": "HTTP Request - Cohere Chunking"
+      "name": "HTTP Request - GPT Chunking"
     },
     {
       "parameters": {
-        "jsCode": "const resp   = $input.first().json;\nconst source = $('Code - Prep Chunking Request').item?.json?.source || 'unknown';\n\nlet chunks = [];\ntry {\n  // Cohere v2: resp.message.content[0].text\n  const raw = resp.message?.content?.[0]?.text || resp.text || '';\n  const parsed = JSON.parse(raw);\n  chunks = parsed.chunks || parsed.items || (Array.isArray(parsed) ? parsed : []);\n} catch(e) {\n  throw new Error('Ошибка парсинга ответа Cohere: ' + e.message);\n}\n\nif (!chunks.length) throw new Error('Cohere вернул пустой список чанков для: ' + source);\n\nconsole.log(`Источник: ${source} — чанков: ${chunks.length}`);\n\nreturn chunks.map((c, i) => ({\n  json: {\n    source,\n    title: c.title || `Блок ${i + 1}`,\n    chunk: c.chunk || c.text || c.content || '',\n    index: i\n  }\n}));"
+        "jsCode": "const resp   = $input.first().json;\nconst source = $('Code - PDF Sources').item?.json?.source || 'unknown';\n\nlet chunks = [];\ntry {\n  // OpenAI: resp.choices[0].message.content\n  const raw    = resp.choices?.[0]?.message?.content || '';\n  const parsed = JSON.parse(raw);\n  chunks = parsed.chunks || parsed.items || (Array.isArray(parsed) ? parsed : []);\n} catch(e) {\n  throw new Error('\\u041e\\u0448\\u0438\\u0431\\u043a\\u0430 \\u043f\\u0430\\u0440\\u0441\\u0438\\u043d\\u0433\\u0430 GPT: ' + e.message);\n}\n\nif (!chunks.length) throw new Error('GPT \\u0432\\u0435\\u0440\\u043d\\u0443\\u043b \\u043f\\u0443\\u0441\\u0442\\u043e\\u0439 \\u0441\\u043f\\u0438\\u0441\\u043e\\u043a \\u0447\\u0430\\u043d\\u043a\\u043e\\u0432 \\u0434\\u043b\\u044f: ' + source);\n\nreturn chunks.map((c, i) => ({\n  json: {\n    source,\n    title: c.title || ('\\u0411\\u043b\\u043e\\u043a ' + (i + 1)),\n    chunk: c.chunk || c.text || c.content || '',\n    index: i\n  }\n}));"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1336,24 +1336,24 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.cohere.com/v2/embed",
+        "url": "https://api.openai.com/v1/embeddings",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer REPLACE_WITH_COHERE_API_KEY"
+              "value": "Bearer OPENAI_API_KEY"
             },
             {
-              "name": "X-Client-Name",
-              "value": "BTI-Bot"
+              "name": "Content-Type",
+              "value": "application/json"
             }
           ]
         },
         "sendBody": true,
         "contentType": "raw",
         "rawContentType": "application/json",
-        "body": "={{ JSON.stringify({\"texts\": [$json.chunk],\"model\": \"embed-multilingual-v3.0\",\"input_type\": \"search_document\",\"embedding_types\": [\"float\"]}) }}",
+        "body": "={{ JSON.stringify({\"input\": $json.chunk,\"model\": \"text-embedding-3-small\"}) }}",
         "options": {}
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -1367,7 +1367,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const embResp = $input.first().json;\n// Cohere v2 embeddings: { embeddings: { float: [[...1024 floats...]] } }\nconst embedding = embResp.embeddings?.float?.[0];\nif (!embedding) throw new Error('Cohere не вернул embedding: ' + JSON.stringify(embResp).substring(0, 200));\n\nconst chunkData = $('Code - Parse Chunks').item.json;\n\nreturn [{\n  json: {\n    source:    chunkData.source,\n    chunk:     chunkData.chunk,\n    embedding: embedding    // 1024-dimensional float array\n  }\n}];"
+        "jsCode": "const embResp = $input.first().json;\n// OpenAI embeddings: { data: [{ embedding: [...1536 floats...] }] }\nconst embedding = embResp.data?.[0]?.embedding;\nif (!embedding) throw new Error('OpenAI \\u043d\\u0435 \\u0432\\u0435\\u0440\\u043d\\u0443\\u043b embedding: ' + JSON.stringify(embResp).substring(0, 200));\n\nconst chunkData = $('Code - Parse Chunks').item.json;\n\nreturn [{\n  json: {\n    source:    chunkData.source,\n    chunk:     chunkData.chunk,\n    embedding: embedding\n  }\n}];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1966,7 +1966,7 @@
       "main": [
         [
           {
-            "node": "HTTP Request - Cohere Chunking",
+            "node": "HTTP Request - GPT Chunking",
             "type": "main",
             "index": 0
           }
@@ -2028,17 +2028,6 @@
         ]
       ]
     },
-    "HTTP Request - Cohere Chunking": {
-      "main": [
-        [
-          {
-            "node": "Code - Parse Chunks",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "HTTP Request - Download Plan": {
       "main": [
         [
@@ -2078,6 +2067,17 @@
           }
         ]
       ]
+    },
+    "HTTP Request - GPT Chunking": {
+      "main": [
+        [
+          {
+            "node": "Code - Parse Chunks",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
     }
   },
   "settings": {
@@ -2090,9 +2090,9 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "a0ea9421-88ae-4924-906d-160de5fd08d2",
-  "activeVersionId": "a0ea9421-88ae-4924-906d-160de5fd08d2",
-  "versionCounter": 66,
+  "versionId": "fa6206e2-90e2-4f59-94b6-5ef60976951b",
+  "activeVersionId": "fa6206e2-90e2-4f59-94b6-5ef60976951b",
+  "versionCounter": 73,
   "triggerCount": 1,
   "shared": [
     {
@@ -2146,9 +2146,9 @@
   ],
   "tags": [],
   "activeVersion": {
-    "updatedAt": "2026-03-20T07:45:43.178Z",
-    "createdAt": "2026-03-20T07:45:43.178Z",
-    "versionId": "a0ea9421-88ae-4924-906d-160de5fd08d2",
+    "updatedAt": "2026-03-20T07:56:07.956Z",
+    "createdAt": "2026-03-20T07:56:07.956Z",
+    "versionId": "fa6206e2-90e2-4f59-94b6-5ef60976951b",
     "workflowId": "305RmoqLIGnuYonX",
     "nodes": [
       {
@@ -3419,7 +3419,7 @@
       },
       {
         "parameters": {
-          "jsCode": "const text   = $input.first().json.text || '';\nconst source = $('Code - PDF Sources').item?.json?.source || 'unknown';\n\nconst MAX_CHARS = 80000;\nconst truncated = text.length > MAX_CHARS\n  ? text.substring(0, MAX_CHARS) + '\\n[текст обрезан]'\n  : text;\n\nconst userMessage = `Ты — эксперт по российскому жилищному законодательству.\nТебе дан текст нормативного документа: \"${source}\".\n\nРаздели текст на смысловые блоки по правилам:\n- Каждый блок = одна статья, пункт, подпункт или логически завершённый раздел\n- НЕ режь по страницам — только по смысловым границам\n- Каждый блок должен быть самодостаточным (понятен без контекста)\n- Минимум: 3 предложения. Максимум: ~500 слов.\n\nВерни ТОЛЬКО валидный JSON объект, без markdown:\n{\"chunks\": [{\"title\": \"номер/заголовок пункта\", \"chunk\": \"полный текст блока\"}]}\n\nТекст документа:\n${truncated}`;\n\n// Cohere Chat v2 request format\nconst body = {\n  model: 'command-r-plus-08-2024',\n  messages: [{ role: 'user', content: userMessage }],\n  response_format: { type: 'json_object' },\n  temperature: 0.1\n};\n\nreturn [{ json: { source, requestBody: JSON.stringify(body) } }];"
+          "jsCode": "const text   = $input.first().json.text || '';\nconst source = $('Code - PDF Sources').item?.json?.source || 'unknown';\n\nconst MAX_CHARS = 80000;\nconst truncated = text.length > MAX_CHARS\n  ? text.substring(0, MAX_CHARS) + '\\n[\\u0442\\u0435\\u043a\\u0441\\u0442 \\u043e\\u0431\\u0440\\u0435\\u0437\\u0430\\u043d]'\n  : text;\n\nconst systemMsg = '\\u0422\\u044b \\u2014 \\u044d\\u043a\\u0441\\u043f\\u0435\\u0440\\u0442 \\u043f\\u043e \\u0440\\u043e\\u0441\\u0441\\u0438\\u0439\\u0441\\u043a\\u043e\\u043c\\u0443 \\u0436\\u0438\\u043b\\u0438\\u0449\\u043d\\u043e\\u043c\\u0443 \\u0437\\u0430\\u043a\\u043e\\u043d\\u043e\\u0434\\u0430\\u0442\\u0435\\u043b\\u044c\\u0441\\u0442\\u0432\\u0443.';\nconst userMsg = '\\u0422\\u0435\\u0431\\u0435 \\u0434\\u0430\\u043d \\u0442\\u0435\\u043a\\u0441\\u0442 \\u043d\\u043e\\u0440\\u043c\\u0430\\u0442\\u0438\\u0432\\u043d\\u043e\\u0433\\u043e \\u0434\\u043e\\u043a\\u0443\\u043c\\u0435\\u043d\\u0442\\u0430: \"' + source + '\".\\n'\n  + '\\u0420\\u0430\\u0437\\u0434\\u0435\\u043b\\u0438 \\u0442\\u0435\\u043a\\u0441\\u0442 \\u043d\\u0430 \\u0441\\u043c\\u044b\\u0441\\u043b\\u043e\\u0432\\u044b\\u0435 \\u0431\\u043b\\u043e\\u043a\\u0438 \\u043f\\u043e \\u043f\\u0440\\u0430\\u0432\\u0438\\u043b\\u0430\\u043c:\\n'\n  + '- \\u041a\\u0430\\u0436\\u0434\\u044b\\u0439 \\u0431\\u043b\\u043e\\u043a = \\u043e\\u0434\\u043d\\u0430 \\u0441\\u0442\\u0430\\u0442\\u044c\\u044f, \\u043f\\u0443\\u043d\\u043a\\u0442, \\u043f\\u043e\\u0434\\u043f\\u0443\\u043d\\u043a\\u0442 \\u0438\\u043b\\u0438 \\u043b\\u043e\\u0433\\u0438\\u0447\\u0435\\u0441\\u043a\\u0438 \\u0437\\u0430\\u0432\\u0435\\u0440\\u0448\\u0451\\u043d\\u043d\\u044b\\u0439 \\u0440\\u0430\\u0437\\u0434\\u0435\\u043b\\n'\n  + '- \\u041d\\u0415 \\u0440\\u0435\\u0436\\u044c \\u043f\\u043e \\u0441\\u0442\\u0440\\u0430\\u043d\\u0438\\u0446\\u0430\\u043c \\u2014 \\u0442\\u043e\\u043b\\u044c\\u043a\\u043e \\u043f\\u043e \\u0441\\u043c\\u044b\\u0441\\u043b\\u043e\\u0432\\u044b\\u043c \\u0433\\u0440\\u0430\\u043d\\u0438\\u0446\\u0430\\u043c\\n'\n  + '- \\u041a\\u0430\\u0436\\u0434\\u044b\\u0439 \\u0431\\u043b\\u043e\\u043a \\u0441\\u0430\\u043c\\u043e\\u0434\\u043e\\u0441\\u0442\\u0430\\u0442\\u043e\\u0447\\u0435\\u043d (\\u043f\\u043e\\u043d\\u044f\\u0442\\u0435\\u043d \\u0431\\u0435\\u0437 \\u043a\\u043e\\u043d\\u0442\\u0435\\u043a\\u0441\\u0442\\u0430)\\n'\n  + '- \\u041c\\u0438\\u043d\\u0438\\u043c\\u0443\\u043c: 3 \\u043f\\u0440\\u0435\\u0434\\u043b\\u043e\\u0436\\u0435\\u043d\\u0438\\u044f. \\u041c\\u0430\\u043a\\u0441\\u0438\\u043c\\u0443\\u043c: ~500 \\u0441\\u043b\\u043e\\u0432.\\n'\n  + '\\u0412\\u0435\\u0440\\u043d\\u0438 ONLY valid JSON (no markdown):\\n'\n  + '{\"chunks\": [{\"title\": \"\\u043d\\u043e\\u043c\\u0435\\u0440/\\u0437\\u0430\\u0433\\u043e\\u043b\\u043e\\u0432\\u043e\\u043a\", \"chunk\": \"\\u043f\\u043e\\u043b\\u043d\\u044b\\u0439 \\u0442\\u0435\\u043a\\u0441\\u0442 \\u0431\\u043b\\u043e\\u043a\\u0430\"}]}\\n'\n  + '\\n\\u0422\\u0435\\u043a\\u0441\\u0442 \\u0434\\u043e\\u043a\\u0443\\u043c\\u0435\\u043d\\u0442\\u0430:\\n' + truncated;\n\nconst body = {\n  model: 'gpt-4o-mini',\n  messages: [\n    { role: 'system', content: systemMsg },\n    { role: 'user',   content: userMsg }\n  ],\n  response_format: { type: 'json_object' },\n  temperature: 0.1\n};\n\nreturn [{ json: { source, requestBody: JSON.stringify(body) } }];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -3433,17 +3433,17 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "https://api.cohere.com/v2/chat",
+          "url": "https://api.openai.com/v1/chat/completions",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
               {
                 "name": "Authorization",
-                "value": "Bearer REPLACE_WITH_COHERE_API_KEY"
+                "value": "Bearer OPENAI_API_KEY"
               },
               {
-                "name": "X-Client-Name",
-                "value": "BTI-Bot"
+                "name": "Content-Type",
+                "value": "application/json"
               }
             ]
           },
@@ -3462,11 +3462,11 @@
           2400
         ],
         "id": "4d991a87-b585-4661-acb4-53d595c504d6",
-        "name": "HTTP Request - Cohere Chunking"
+        "name": "HTTP Request - GPT Chunking"
       },
       {
         "parameters": {
-          "jsCode": "const resp   = $input.first().json;\nconst source = $('Code - Prep Chunking Request').item?.json?.source || 'unknown';\n\nlet chunks = [];\ntry {\n  // Cohere v2: resp.message.content[0].text\n  const raw = resp.message?.content?.[0]?.text || resp.text || '';\n  const parsed = JSON.parse(raw);\n  chunks = parsed.chunks || parsed.items || (Array.isArray(parsed) ? parsed : []);\n} catch(e) {\n  throw new Error('Ошибка парсинга ответа Cohere: ' + e.message);\n}\n\nif (!chunks.length) throw new Error('Cohere вернул пустой список чанков для: ' + source);\n\nconsole.log(`Источник: ${source} — чанков: ${chunks.length}`);\n\nreturn chunks.map((c, i) => ({\n  json: {\n    source,\n    title: c.title || `Блок ${i + 1}`,\n    chunk: c.chunk || c.text || c.content || '',\n    index: i\n  }\n}));"
+          "jsCode": "const resp   = $input.first().json;\nconst source = $('Code - PDF Sources').item?.json?.source || 'unknown';\n\nlet chunks = [];\ntry {\n  // OpenAI: resp.choices[0].message.content\n  const raw    = resp.choices?.[0]?.message?.content || '';\n  const parsed = JSON.parse(raw);\n  chunks = parsed.chunks || parsed.items || (Array.isArray(parsed) ? parsed : []);\n} catch(e) {\n  throw new Error('\\u041e\\u0448\\u0438\\u0431\\u043a\\u0430 \\u043f\\u0430\\u0440\\u0441\\u0438\\u043d\\u0433\\u0430 GPT: ' + e.message);\n}\n\nif (!chunks.length) throw new Error('GPT \\u0432\\u0435\\u0440\\u043d\\u0443\\u043b \\u043f\\u0443\\u0441\\u0442\\u043e\\u0439 \\u0441\\u043f\\u0438\\u0441\\u043e\\u043a \\u0447\\u0430\\u043d\\u043a\\u043e\\u0432 \\u0434\\u043b\\u044f: ' + source);\n\nreturn chunks.map((c, i) => ({\n  json: {\n    source,\n    title: c.title || ('\\u0411\\u043b\\u043e\\u043a ' + (i + 1)),\n    chunk: c.chunk || c.text || c.content || '',\n    index: i\n  }\n}));"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -3480,24 +3480,24 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "https://api.cohere.com/v2/embed",
+          "url": "https://api.openai.com/v1/embeddings",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
               {
                 "name": "Authorization",
-                "value": "Bearer REPLACE_WITH_COHERE_API_KEY"
+                "value": "Bearer OPENAI_API_KEY"
               },
               {
-                "name": "X-Client-Name",
-                "value": "BTI-Bot"
+                "name": "Content-Type",
+                "value": "application/json"
               }
             ]
           },
           "sendBody": true,
           "contentType": "raw",
           "rawContentType": "application/json",
-          "body": "={{ JSON.stringify({\"texts\": [$json.chunk],\"model\": \"embed-multilingual-v3.0\",\"input_type\": \"search_document\",\"embedding_types\": [\"float\"]}) }}",
+          "body": "={{ JSON.stringify({\"input\": $json.chunk,\"model\": \"text-embedding-3-small\"}) }}",
           "options": {}
         },
         "type": "n8n-nodes-base.httpRequest",
@@ -3511,7 +3511,7 @@
       },
       {
         "parameters": {
-          "jsCode": "const embResp = $input.first().json;\n// Cohere v2 embeddings: { embeddings: { float: [[...1024 floats...]] } }\nconst embedding = embResp.embeddings?.float?.[0];\nif (!embedding) throw new Error('Cohere не вернул embedding: ' + JSON.stringify(embResp).substring(0, 200));\n\nconst chunkData = $('Code - Parse Chunks').item.json;\n\nreturn [{\n  json: {\n    source:    chunkData.source,\n    chunk:     chunkData.chunk,\n    embedding: embedding    // 1024-dimensional float array\n  }\n}];"
+          "jsCode": "const embResp = $input.first().json;\n// OpenAI embeddings: { data: [{ embedding: [...1536 floats...] }] }\nconst embedding = embResp.data?.[0]?.embedding;\nif (!embedding) throw new Error('OpenAI \\u043d\\u0435 \\u0432\\u0435\\u0440\\u043d\\u0443\\u043b embedding: ' + JSON.stringify(embResp).substring(0, 200));\n\nconst chunkData = $('Code - Parse Chunks').item.json;\n\nreturn [{\n  json: {\n    source:    chunkData.source,\n    chunk:     chunkData.chunk,\n    embedding: embedding\n  }\n}];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -4110,7 +4110,7 @@
         "main": [
           [
             {
-              "node": "HTTP Request - Cohere Chunking",
+              "node": "HTTP Request - GPT Chunking",
               "type": "main",
               "index": 0
             }
@@ -4172,17 +4172,6 @@
           ]
         ]
       },
-      "HTTP Request - Cohere Chunking": {
-        "main": [
-          [
-            {
-              "node": "Code - Parse Chunks",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
-      },
       "HTTP Request - Download Plan": {
         "main": [
           [
@@ -4222,6 +4211,17 @@
             }
           ]
         ]
+      },
+      "HTTP Request - GPT Chunking": {
+        "main": [
+          [
+            {
+              "node": "Code - Parse Chunks",
+              "type": "main",
+              "index": 0
+            }
+          ]
+        ]
       }
     },
     "authors": "Admin Admin",
@@ -4230,18 +4230,26 @@
     "autosaved": false,
     "workflowPublishHistory": [
       {
-        "createdAt": "2026-03-20T07:45:52.531Z",
-        "id": 174,
+        "createdAt": "2026-03-20T07:56:44.533Z",
+        "id": 177,
         "workflowId": "305RmoqLIGnuYonX",
-        "versionId": "a0ea9421-88ae-4924-906d-160de5fd08d2",
+        "versionId": "fa6206e2-90e2-4f59-94b6-5ef60976951b",
         "event": "activated",
         "userId": "22bd6d73-5378-4d79-97c5-c471d4c139b2"
       },
       {
-        "createdAt": "2026-03-20T07:46:13.279Z",
-        "id": 175,
+        "createdAt": "2026-03-20T07:56:24.917Z",
+        "id": 176,
         "workflowId": "305RmoqLIGnuYonX",
-        "versionId": "a0ea9421-88ae-4924-906d-160de5fd08d2",
+        "versionId": "fa6206e2-90e2-4f59-94b6-5ef60976951b",
+        "event": "activated",
+        "userId": "22bd6d73-5378-4d79-97c5-c471d4c139b2"
+      },
+      {
+        "createdAt": "2026-03-20T07:57:06.435Z",
+        "id": 178,
+        "workflowId": "305RmoqLIGnuYonX",
+        "versionId": "fa6206e2-90e2-4f59-94b6-5ef60976951b",
         "event": "activated",
         "userId": "22bd6d73-5378-4d79-97c5-c471d4c139b2"
       }
