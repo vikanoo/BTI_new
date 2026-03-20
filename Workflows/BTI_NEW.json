@@ -927,7 +927,7 @@
             {
               "keyName": "chat_id",
               "condition": "eq",
-              "keyValue": "={{ $json.chatId }}"
+              "keyValue": "={{ $('Code - Parse Gemini').item.json.chatId }}"
             }
           ]
         },
