@@ -109,53 +109,58 @@ $$;
 
 ---
 
-## Четверг 26.03 — Python-сервис v1: Docker + PDF-конвертация
+## ✅ Четверг 26.03 — Python-сервис v1: Docker + PDF-конвертация
 
 **Инфраструктура Python-сервиса**
 
-- [ ] Создать Flask-приложение в Docker Compose (рядом с N8N):
+- [x] Создать Flask-приложение в Docker Compose (рядом с N8N):
   - `python-service/app.py` — основной файл
-  - `python-service/requirements.txt` — Flask, pdf2image, Pillow, requests
-  - `python-service/Dockerfile`
-  - Добавить сервис в `docker-compose.yml` на VPS
-- [ ] Эндпоинт `POST /convert-pdf`:
-  - Вход: PDF-файл (multipart/form-data)
+  - `python-service/requirements.txt` — Flask, pdf2image, Pillow
+  - `python-service/Dockerfile` — python:3.11-slim + poppler-utils
+  - `docker-compose.yml` — шаблон для добавления на VPS
+- [x] Эндпоинт `POST /convert-pdf`:
+  - Вход: PDF-файл (multipart/form-data, поле `file`)
   - Логика: `pdf2image.convert_from_bytes()` → первая страница → сохранить как PNG
-  - Выход: PNG-файл (бинарный ответ)
-- [ ] Протестировать эндпоинт вручную через curl/Postman
+  - Выход: PNG-файл (бинарный ответ, mimetype `image/png`)
+- [ ] Протестировать эндпоинт вручную через curl/Postman (ручной шаг после деплоя на VPS)
 
 **Интеграция PDF в бот**
 
-- [ ] Убрать заглушку "PDF не поддерживается" (узел `Send a text message3`)
-- [ ] Вместо этого: при `mime_type = application/pdf` → скачать файл из Telegram → HTTP POST к Python-сервису `/convert-pdf` → получить PNG → загрузить PNG в Supabase Storage → продолжить цепочку анализа
-- [ ] Добавить сообщение пользователю: "PDF получен, конвертирую в изображение..."
+- [x] Убрать заглушку "PDF не поддерживается" (узел `Send a text message3` отключён от цепочки)
+- [x] Вместо этого: при `mime_type = application/pdf` → `Telegram - PDF Received` ("PDF получен, конвертирую...") → `Get Telegram File PDF` → `HTTP Request - Convert PDF` (POST к `http://python-service:5000/convert-pdf`) → `HTTP Request - Upload Converted Plan` (PUT в Supabase Storage как `plan.png`) → продолжить цепочку анализа
+- [x] Добавить сообщение пользователю: "PDF получен, конвертирую в изображение..."
 
 **Результат дня:** PDF-планы принимаются и конвертируются в PNG автоматически
 
+🖍️**Заметки:** Добавлены 4 узла: `Telegram - PDF Received` → `Get Telegram File PDF` → `HTTP Request - Convert PDF` → `HTTP Request - Upload Converted Plan`. После загрузки PNG поток присоединяется к `HTTP Request - Download Plan` (та же точка, что и для обычных изображений). Тест через curl/Postman — ручной шаг после деплоя сервиса на VPS (`docker-compose up -d python-service`).
+
 ---
 
-## Пятница 27.03 — Python-сервис v2: Аннотация плана
+## ✅ Пятница 27.03 — Python-сервис v2: Аннотация плана
 
 **Эндпоинт разметки комнат**
 
-- [ ] `POST /annotate-rooms`:
-  - Вход: изображение плана (base64 или multipart) + `rooms_json`
-  - Логика: PIL/Pillow — нанести прямоугольники `region_percent` и подписи названий комнат
-  - Выход: аннотированное PNG (base64 или файл)
-- [ ] Интегрировать в N8N: вызывать после шага 2 (Gemini rooms), отправить аннотированный план пользователю вместо текстового списка
+- [x] `POST /annotate-rooms`:
+  - Вход: multipart/form-data `{ image: PNG, rooms_json: JSON string }`
+  - Логика: PIL/Pillow — синие полупрозрачные прямоугольники по `region_percent` + подписи названий комнат
+  - Выход: аннотированное PNG (бинарный ответ)
+- [x] Интегрировать в N8N: после `Code - Parse Gemini` → `HTTP Request - Download Plan for Annotation` → `HTTP Request - Annotate Rooms` → `Telegram - Send Annotated Plan` (sendPhoto с подписью) → `Supabase - Save Analysis`
 
 **Эндпоинт визуализации изменений**
 
-- [ ] `POST /annotate-changes`:
-  - Вход: изображение плана + `rooms_json` + `changes` из GPT-4o
+- [x] `POST /annotate-changes`:
+  - Вход: multipart/form-data `{ image: PNG, rooms_json: JSON string, changes: JSON string }`
   - Логика: по `room_id` находить `region_percent` из `rooms_json`, закрашивать:
     - Жёлтым (50% прозрачность) — `requires_approval`
     - Красным (50% прозрачность) — `illegal`
-    - Нумерованные подписи для каждого изменения
-  - Выход: аннотированный план с легендой
-- [ ] Интегрировать в N8N: вызывать в шаге 6, отправить аннотированный план вместе с текстовым отчётом
+    - Зелёным (слабо) — `legal`
+    - Нумерованные значки для каждого изменения
+  - Выход: аннотированный план (PNG)
+- [x] Интегрировать в N8N: после `Code - Build Report` → `HTTP Request - Download Plan for Changes` → `HTTP Request - Annotate Changes` → `Telegram - Send Annotated Changes` (sendPhoto) → `Telegram - Send Report` (текст) → `IF - Low Confidence`
 
 **Результат дня:** Бот отправляет аннотированный план на шаге 2 и в финальном отчёте
+
+🖍️**Заметки:** Добавлено 6 узлов в N8N. Шаг 2: план скачивается из Supabase Storage (public URL), передаётся в python-service, аннотированный PNG отправляется через `sendPhoto` вместо текстового списка. Шаг 6: аналогично — аннотированный план с изменениями отправляется перед текстовым отчётом. Заодно исправлен `.item` → `.first()` в `Code - Parse GPT4o Response`.
 
 ---
 
@@ -192,8 +197,8 @@ $$;
 | ✅ Пн 23.03 | RAG-узлы добавлены в N8N (4 узла), match_embeddings SQL — ручной шаг в Supabase |
 | ✅ Вт 24.03 | GPT-4o анализирует план + фото + RAG, возвращает JSON изменений |
 | ✅ Ср 25.03 | Текстовый отчёт отправляется пользователю, менеджер уведомляется при низкой уверенности |
-| Чт 26.03 | Python-сервис запущен, PDF-планы принимаются и конвертируются |
-| Пт 27.03 | Аннотированный план отправляется на шаге 2 и в финальном отчёте |
+| ✅ Чт 26.03 | Python-сервис создан, PDF-интеграция в N8N готова (деплой на VPS — ручной шаг) |
+| ✅ Пт 27.03 | Аннотированный план отправляется на шаге 2 и в финальном отчёте |
 | Вых 28–29.03 | Полный сквозной тест пройден, критические баги исправлены |
 
 **На следующей неделе (Phase 2):** PDF-отчёт, административный интерфейс обновления нормативов, многостраничные PDF-планы, региональные нормативы.
