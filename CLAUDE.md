@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 This is a Telegram bot that analyzes apartment floor plans (BTI documents) and detects unauthorized renovations (перепланировка). The bot compares official BTI plans with user-submitted photos to classify changes under Russian housing regulations.
 
-**Current status:** Week 1 MVP development (started March 16, 2026). Core workflow skeleton built; AI model integrations (Gemini, GPT-4o) not yet called in production.
+**Current status:** Week 2 development (started March 23, 2026). Full end-to-end flow operational: plan upload → Gemini analysis → photo collection → GPT-4o analysis + RAG → annotated report to user.
 
 ## Technology Stack
 
@@ -20,9 +20,10 @@ This is a **no-code/low-code project** — there is no traditional build system,
 | Vision analysis | Google Gemini 2.0 Flash |
 | Final analysis + RAG | OpenAI GPT-4o |
 | Embeddings | OpenAI text-embedding-3-small |
-| Image annotation (planned) | Python + Flask + PIL/Pillow |
+| Image annotation | Python + Flask + PIL/Pillow (`python-service/`) |
 
 **All logic lives in the N8N workflow** exported at [Workflows/BTI_NEW.json](Workflows/BTI_NEW.json).
+**Python microservice** at [python-service/](python-service/) — runs alongside N8N in Docker Compose.
 
 ## Architecture
 
@@ -57,15 +58,29 @@ Two-level switch in the N8N workflow:
 1. **By type**: `document`, `photo`, `text`, `callback_query`
 2. **By step**: current session state (read from Supabase before routing)
 
-### RAG Architecture (planned, Week 2)
+### RAG Architecture
 
-Three PDF documents in [БазаЗнаний/](БазаЗнаний/) contain Russian housing norms. These will be chunked, embedded via `text-embedding-3-small`, stored in the `embeddings` table (pgvector), and queried at analysis time to provide GPT-4o with relevant regulatory context.
+Three PDF documents in [БазаЗнаний/](БазаЗнаний/) contain Russian housing norms. Chunked, embedded via `text-embedding-3-small`, stored in the `embeddings` table (pgvector). At analysis time, all 21 chunks are fetched directly via `GET /rest/v1/embeddings?select=id,source,chunk` and passed to GPT-4o as context (no vector similarity search — table is small enough for full fetch).
+
+### Python Microservice
+
+`python-service/` provides three endpoints:
+
+| Endpoint | Input | Output |
+|----------|-------|--------|
+| `POST /convert-pdf` | PDF file (multipart `file`) | PNG (first page, 200 dpi) |
+| `POST /annotate-rooms` | PNG + `rooms_json` (multipart) | PNG with blue room labels |
+| `POST /annotate-changes` | PNG + `rooms_json` + `changes` (multipart) | PNG with colored overlays (red=illegal, yellow=requires_approval) |
+
+Deploy alongside N8N: `docker-compose up -d python-service`. N8N accesses it at `http://python-service:5000`.
 
 ## Key Files
 
 - [Workflows/BTI_NEW.json](Workflows/BTI_NEW.json) — N8N workflow export (the entire bot logic)
+- [python-service/app.py](python-service/app.py) — Flask microservice (PDF convert + room/change annotation)
+- [docker-compose.yml](docker-compose.yml) — Template for adding python-service to VPS Docker Compose
 - [REQUIREMENTS.md](REQUIREMENTS.md) — Full system specification: user flows, API details, cost model, Supabase schema, limitations
-- [PLAN_WEEK_1.md](PLAN_WEEK_1.md) — Day-by-day development plan for Week 1
+- [PLAN_WEEK/PLAN_WEEK_2.md](PLAN_WEEK/PLAN_WEEK_2.md) — Week 2 development plan (current week)
 
 ## Supabase Schema
 
@@ -100,6 +115,16 @@ Since there is no build system, "development" means:
 3. Test via Telegram (live bot) — there is no local test runner
 
 **To deploy workflow changes:** Import `BTI_NEW.json` into the N8N instance via Settings → Import Workflow.
+
+**To deploy python-service:** Copy `python-service/` and `docker-compose.yml` to VPS, add service block to existing `docker-compose.yml`, run `docker-compose up -d python-service`.
+
+## N8N Environment Variables (required)
+
+| Variable | Description |
+|----------|-------------|
+| `GEMINI_API_KEY` | Google Gemini API key (set in N8N: Settings → Environment Variables) |
+| `MANAGER_CHAT_ID` | Telegram chat_id of manager for low-confidence notifications (currently hardcoded as `1106349687`) |
+| `PYTHON_SERVICE_URL` | Base URL of python-service (default: `http://python-service:5000`) |
 
 ## Important Constraints
 
