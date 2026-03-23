@@ -845,7 +845,9 @@
         "contentType": "raw",
         "rawContentType": "application/json",
         "body": "={{ $json.requestBodyString }}",
-        "options": {}
+        "options": {
+          "timeout": 60000
+        }
       },
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
@@ -855,7 +857,10 @@
       ],
       "id": "93876821-54aa-4474-85f5-b81ca5060de6",
       "name": "HTTP Request - Gemini",
-      "continueOnFail": true
+      "continueOnFail": true,
+      "retryOnFail": true,
+      "maxTries": 3,
+      "waitBetweenTries": 3000
     },
     {
       "parameters": {
