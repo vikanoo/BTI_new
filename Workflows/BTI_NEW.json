@@ -2052,7 +2052,8 @@
     {
       "parameters": {
         "resource": "file",
-        "operation": "getFile"
+        "operation": "getFile",
+        "fileId": "={{ $('Telegram Trigger').first().json.message.document.file_id }}"
       },
       "name": "Get Telegram File PDF",
       "type": "n8n-nodes-base.telegram",
@@ -5725,7 +5726,8 @@
       {
         "parameters": {
           "resource": "file",
-          "operation": "getFile"
+          "operation": "getFile",
+          "fileId": "={{ $('Telegram Trigger').first().json.message.document.file_id }}"
         },
         "name": "Get Telegram File PDF",
         "type": "n8n-nodes-base.telegram",
