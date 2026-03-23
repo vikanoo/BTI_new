@@ -2052,7 +2052,7 @@
     {
       "parameters": {
         "resource": "file",
-        "operation": "getFile",
+        "operation": "get",
         "fileId": "={{ $('Telegram Trigger').first().json.message.document.file_id }}"
       },
       "name": "Get Telegram File PDF",
@@ -5726,7 +5726,7 @@
       {
         "parameters": {
           "resource": "file",
-          "operation": "getFile",
+          "operation": "get",
           "fileId": "={{ $('Telegram Trigger').first().json.message.document.file_id }}"
         },
         "name": "Get Telegram File PDF",
