@@ -1362,7 +1362,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/embeddings",
+        "url": "https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/database_retriever",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -1517,7 +1517,7 @@
     },
     {
       "parameters": {
-        "url": "https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/embeddings?select=id,source,chunk",
+        "url": "https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/database_retriever?select=id,source,chunk",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -5041,7 +5041,7 @@
       {
         "parameters": {
           "method": "POST",
-          "url": "https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/embeddings",
+          "url": "https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/database_retriever",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
@@ -5196,7 +5196,7 @@
       },
       {
         "parameters": {
-          "url": "https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/embeddings?select=id,source,chunk",
+          "url": "https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/database_retriever?select=id,source,chunk",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
