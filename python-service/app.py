@@ -129,22 +129,39 @@ def annotate_changes():
     for i, change in enumerate(changes):
         room = room_map.get(change.get('room_id', ''), {})
         region = room.get('region_percent', {})
-        if not region:
-            continue
-
         cls = change.get('classification', 'legal')
-        x1, y1, x2, y2 = region_to_pixels(region, width, height)
+        change_region = change.get('change_region')
 
-        draw.rectangle([x1, y1, x2, y2],
-                       fill=fill_colors.get(cls, (128, 128, 128, 100)),
-                       outline=border_colors.get(cls, (100, 100, 100, 200)),
-                       width=2)
+        fill = fill_colors.get(cls, (128, 128, 128, 100))
+        border = border_colors.get(cls, (100, 100, 100, 200))
 
-        # Numbered badge in top-left corner of room
-        badge_x2, badge_y2 = x1 + 22, y1 + 22
-        draw.rectangle([x1, y1, badge_x2, badge_y2],
-                       fill=border_colors.get(cls, (100, 100, 100, 220)))
-        draw.text((x1 + 5, y1 + 3), str(i + 1), fill=(255, 255, 255, 255))
+        if change_region:
+            # Draw light room context
+            if region:
+                rx1, ry1, rx2, ry2 = region_to_pixels(region, width, height)
+                draw.rectangle([rx1, ry1, rx2, ry2],
+                               fill=(fill[0], fill[1], fill[2], 20),
+                               outline=(border[0], border[1], border[2], 70),
+                               width=1)
+            # Draw specific change with full color and thick border
+            cx1, cy1, cx2, cy2 = region_to_pixels(change_region, width, height)
+            draw.rectangle([cx1, cy1, cx2, cy2],
+                           fill=fill,
+                           outline=border,
+                           width=3)
+            # Numbered badge on change region
+            badge_x2, badge_y2 = cx1 + 22, cy1 + 22
+            draw.rectangle([cx1, cy1, badge_x2, badge_y2], fill=border)
+            draw.text((cx1 + 5, cy1 + 3), str(i + 1), fill=(255, 255, 255, 255))
+        else:
+            # Fall back to room-level annotation
+            if not region:
+                continue
+            x1, y1, x2, y2 = region_to_pixels(region, width, height)
+            draw.rectangle([x1, y1, x2, y2], fill=fill, outline=border, width=2)
+            badge_x2, badge_y2 = x1 + 22, y1 + 22
+            draw.rectangle([x1, y1, badge_x2, badge_y2], fill=border)
+            draw.text((x1 + 5, y1 + 3), str(i + 1), fill=(255, 255, 255, 255))
 
     result = Image.alpha_composite(img, overlay).convert('RGB')
     img_io = io.BytesIO()
