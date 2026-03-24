@@ -40,52 +40,30 @@ def polygon_centroid(pts):
     return cx, cy
 
 
-def snap_to_wall(img_cv, sx1, sy1, sx2, sy2):
-    """Snap a GPT segment to the nearest actual wall line detected by HoughLinesP.
-    Returns (sx1, sy1, sx2, sy2) — snapped or original if no confident match."""
+def find_shared_edge(poly1, poly2, width, height, tol=0.05):
+    """Find the shared boundary segment between two room polygons.
+    Returns pixel (x1,y1,x2,y2) of the longest matching edge, or None."""
     import math
-    h, w = img_cv.shape[:2]
-    gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
-    _, thresh = cv2.threshold(gray, 200, 255, cv2.THRESH_BINARY_INV)
 
-    # Search radius: 8% of shorter side, at least 30px
-    radius = max(30, int(min(w, h) * 0.08))
+    def pt_dist(a, b):
+        return math.hypot(a[0] - b[0], a[1] - b[1])
 
-    x_min = max(0, min(sx1, sx2) - radius)
-    x_max = min(w, max(sx1, sx2) + radius)
-    y_min = max(0, min(sy1, sy2) - radius)
-    y_max = min(h, max(sy1, sy2) + radius)
-
-    if x_max - x_min < 5 or y_max - y_min < 5:
-        return sx1, sy1, sx2, sy2
-
-    roi = thresh[y_min:y_max, x_min:x_max]
-    min_len = max(10, int(math.hypot(sx2 - sx1, sy2 - sy1) * 0.3))
-    lines = cv2.HoughLinesP(roi, 1, np.pi / 180, threshold=15,
-                             minLineLength=min_len, maxLineGap=20)
-    if lines is None:
-        return sx1, sy1, sx2, sy2
-
-    seg_angle = math.atan2(sy2 - sy1, sx2 - sx1)
-    seg_mx, seg_my = (sx1 + sx2) / 2, (sy1 + sy2) / 2
-
-    best, best_score = None, float('inf')
-    for ln in lines:
-        lx1, ly1, lx2, ly2 = ln[0]
-        la = math.atan2(ly2 - ly1, lx2 - lx1)
-        angle_diff = abs(seg_angle - la) % math.pi
-        angle_diff = min(angle_diff, math.pi - angle_diff)
-        dist = math.hypot(seg_mx - ((lx1 + lx2) / 2 + x_min),
-                          seg_my - ((ly1 + ly2) / 2 + y_min))
-        score = angle_diff * 300 + dist
-        if score < best_score:
-            best_score = score
-            best = (lx1 + x_min, ly1 + y_min, lx2 + x_min, ly2 + y_min)
-
-    # Accept snap only if close enough and angle matches
-    if best and best_score < radius * 2:
-        return best
-    return sx1, sy1, sx2, sy2
+    best, best_len = None, 0
+    for i in range(len(poly1)):
+        a1 = poly1[i]
+        b1 = poly1[(i + 1) % len(poly1)]
+        for j in range(len(poly2)):
+            a2 = poly2[j]
+            b2 = poly2[(j + 1) % len(poly2)]
+            match = (pt_dist(a1, a2) < tol and pt_dist(b1, b2) < tol) or \
+                    (pt_dist(a1, b2) < tol and pt_dist(b1, a2) < tol)
+            if match:
+                seg_len = pt_dist(a1, b1)
+                if seg_len > best_len:
+                    best_len = seg_len
+                    best = (int(a1[0] * width), int(a1[1] * height),
+                            int(b1[0] * width), int(b1[1] * height))
+    return best
 
 
 @app.route('/health', methods=['GET'])
@@ -242,9 +220,6 @@ def annotate_changes():
     changes = json.loads(changes_raw) if isinstance(changes_raw, str) else changes_raw
     width, height = img.size
 
-    # OpenCV reference for wall snapping (RGB→BGR)
-    img_cv_ref = cv2.cvtColor(np.array(img.convert('RGB')), cv2.COLOR_RGB2BGR)
-
     line_colors = {
         'illegal':           (220, 38,  38,  255),   # red
         'requires_approval': (217, 119, 6,   255),   # amber
@@ -268,69 +243,73 @@ def annotate_changes():
         bg_color   = label_bg.get(cls, (150, 150, 150, 220))
         line_w = max(4, int(min(width, height) * 0.008))  # ~0.8% of shorter side
 
-        segments = change.get('wall_segments')
+        import math
 
-        # Fallback: if no wall segments, draw outline around the room polygon
-        if not segments:
+        # --- Determine which wall segment to highlight ---
+        wall_seg = None  # (sx1, sy1, sx2, sy2) in pixels
+
+        # Priority 1: shared edge between two affected rooms (computed from polygons)
+        affected_ids = change.get('affected_room_ids') or [change.get('room_id', '')]
+        if len(affected_ids) >= 2:
+            poly1_raw = room_map.get(affected_ids[0], {}).get('polygon', [])
+            poly2_raw = room_map.get(affected_ids[1], {}).get('polygon', [])
+            if poly1_raw and poly2_raw:
+                wall_seg = find_shared_edge(poly1_raw, poly2_raw, width, height)
+
+        # Priority 2: wall_segments from GPT (only if no degenerate values)
+        if wall_seg is None:
+            segments = change.get('wall_segments') or []
+            for seg in segments:
+                if len(seg) != 4:
+                    continue
+                sx1 = int(seg[0] * width)
+                sy1 = int(seg[1] * height)
+                sx2 = int(seg[2] * width)
+                sy2 = int(seg[3] * height)
+                if abs(sx2 - sx1) > width * 0.6 and abs(sy2 - sy1) > height * 0.6:
+                    continue
+                wall_seg = (sx1, sy1, sx2, sy2)
+                break
+
+        # Priority 3: fallback — outline the primary room polygon
+        if wall_seg is None:
             room = room_map.get(change.get('room_id', ''), {})
             room_poly = region_to_polygon(
                 room.get('polygon') or room.get('region_percent', {}), width, height
             )
             if room_poly:
-                draw.polygon(room_poly, fill=None, outline=line_color)
-                mx = sum(p[0] for p in room_poly) // len(room_poly)
-                my = sum(p[1] for p in room_poly) // len(room_poly)
+                r_c, g_c, b_c, _ = line_color
+                draw.polygon(room_poly, fill=(r_c, g_c, b_c, 40), outline=line_color)
+                mx, my = polygon_centroid(room_poly)
                 r = line_w * 3
                 draw.ellipse([mx - r, my - r, mx + r, my + r], fill=bg_color)
                 draw.text((mx - r // 2, my - r), str(badge_num), fill=(255, 255, 255, 255))
                 badge_num += 1
             continue
 
-        drawn = False
-        for seg in segments:
-            if len(seg) != 4:
-                continue
-            sx1 = int(seg[0] * width)
-            sy1 = int(seg[1] * height)
-            sx2 = int(seg[2] * width)
-            sy2 = int(seg[3] * height)
+        # Draw highlight band over the wall segment
+        sx1, sy1, sx2, sy2 = wall_seg
+        dx, dy = sx2 - sx1, sy2 - sy1
+        seg_len = math.hypot(dx, dy) or 1
+        px, py = -dy / seg_len, dx / seg_len
+        hw = line_w * 4
+        r_c, g_c, b_c, _ = line_color
+        band = [
+            (int(sx1 + px * hw), int(sy1 + py * hw)),
+            (int(sx2 + px * hw), int(sy2 + py * hw)),
+            (int(sx2 - px * hw), int(sy2 - py * hw)),
+            (int(sx1 - px * hw), int(sy1 - py * hw)),
+        ]
+        draw.polygon(band, fill=(r_c, g_c, b_c, 110))
+        draw.polygon(band, outline=(r_c, g_c, b_c, 255))
+        draw.line([(sx1, sy1), (sx2, sy2)], fill=line_color, width=max(2, line_w // 2))
 
-            # Skip degenerate segments covering >60% in both axes
-            if abs(sx2 - sx1) > width * 0.6 and abs(sy2 - sy1) > height * 0.6:
-                continue
-
-            import math
-            dx, dy = sx2 - sx1, sy2 - sy1
-            seg_len = math.hypot(dx, dy) or 1
-            px, py = -dy / seg_len, dx / seg_len  # perpendicular unit vector
-
-            # Wide semi-transparent highlight band (like a marker pen over the wall)
-            hw = line_w * 4  # half-width of the highlight band
-            r_c, g_c, b_c, _ = line_color
-            band = [
-                (int(sx1 + px * hw), int(sy1 + py * hw)),
-                (int(sx2 + px * hw), int(sy2 + py * hw)),
-                (int(sx2 - px * hw), int(sy2 - py * hw)),
-                (int(sx1 - px * hw), int(sy1 - py * hw)),
-            ]
-            draw.polygon(band, fill=(r_c, g_c, b_c, 110))   # semi-transparent fill
-            draw.polygon(band, outline=(r_c, g_c, b_c, 255)) # solid border
-
-            # Solid center line for precision
-            draw.line([(sx1, sy1), (sx2, sy2)], fill=line_color, width=max(2, line_w // 2))
-
-            drawn = True
-
-        if drawn:
-            # Badge near the first valid segment midpoint
-            seg0 = segments[0]
-            if len(seg0) == 4:
-                mx = int((seg0[0] + seg0[2]) / 2 * width)
-                my = int((seg0[1] + seg0[3]) / 2 * height)
-                r = line_w * 3
-                draw.ellipse([mx - r, my - r, mx + r, my + r], fill=bg_color)
-                draw.text((mx - r // 2, my - r), str(badge_num), fill=(255, 255, 255, 255))
-            badge_num += 1
+        mx = int((sx1 + sx2) / 2)
+        my = int((sy1 + sy2) / 2)
+        r = line_w * 3
+        draw.ellipse([mx - r, my - r, mx + r, my + r], fill=bg_color)
+        draw.text((mx - r // 2, my - r), str(badge_num), fill=(255, 255, 255, 255))
+        badge_num += 1
 
     result = Image.alpha_composite(img, overlay).convert('RGB')
     img_io = io.BytesIO()
