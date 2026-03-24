@@ -3550,7 +3550,7 @@
       "main": [
         [
           {
-            "node": "HTTP Request - Annotate Rooms",
+            "node": "Telegram - Send Annotated Plan",
             "type": "main",
             "index": 0
           }
@@ -3558,15 +3558,7 @@
       ]
     },
     "HTTP Request - Annotate Rooms": {
-      "main": [
-        [
-          {
-            "node": "Telegram - Send Annotated Plan",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
+      "main": [[]]
     },
     "Telegram - Send Annotated Plan": {
       "main": [
@@ -7279,7 +7271,7 @@
         "main": [
           [
             {
-              "node": "HTTP Request - Annotate Rooms",
+              "node": "Telegram - Send Annotated Plan",
               "type": "main",
               "index": 0
             }
@@ -7287,15 +7279,7 @@
         ]
       },
       "HTTP Request - Annotate Rooms": {
-        "main": [
-          [
-            {
-              "node": "Telegram - Send Annotated Plan",
-              "type": "main",
-              "index": 0
-            }
-          ]
-        ]
+        "main": [[]]
       },
       "Telegram - Send Annotated Plan": {
         "main": [
