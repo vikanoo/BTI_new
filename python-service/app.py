@@ -113,35 +113,6 @@ def find_wall_between_centroids(img_cv, c1, c2, strip_fraction=0.15, min_cos_per
     return best_line
 
 
-def find_nearest_hough_line(img_cv, qx, qy, radius=80):
-    """Find the Hough line segment closest to pixel (qx, qy) within radius px.
-    Returns (x1, y1, x2, y2) or None.
-    """
-    gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
-    _, binary = cv2.threshold(gray, 220, 255, cv2.THRESH_BINARY_INV)
-    lines = cv2.HoughLinesP(binary, 1, np.pi / 180, threshold=40,
-                             minLineLength=20, maxLineGap=15)
-    if lines is None:
-        return None
-
-    def dist_pt_seg(px, py, x1, y1, x2, y2):
-        dx, dy = x2 - x1, y2 - y1
-        if dx == 0 and dy == 0:
-            return math.hypot(px - x1, py - y1)
-        t = max(0.0, min(1.0, ((px - x1) * dx + (py - y1) * dy) / (dx * dx + dy * dy)))
-        return math.hypot(px - x1 - t * dx, py - y1 - t * dy)
-
-    best_line = None
-    best_d = float('inf')
-    for ln in lines:
-        x1, y1, x2, y2 = ln[0]
-        d = dist_pt_seg(qx, qy, x1, y1, x2, y2)
-        if d < best_d:
-            best_d = d
-            best_line = (x1, y1, x2, y2)
-
-    return best_line if best_d <= radius else None
-
 
 @app.route('/health', methods=['GET'])
 def health():
@@ -309,7 +280,6 @@ def annotate_changes():
 
     badge_num = 1
     room_map = {r.get('id', ''): r for r in rooms}
-    hough_radius = int(min(width, height) * 0.08)
 
     for change in changes:
         cls = change.get('classification', 'legal')
@@ -321,7 +291,6 @@ def annotate_changes():
         line_w = max(4, int(min(width, height) * 0.008))
 
         affected_ids = change.get('affected_room_ids') or [change.get('room_id', '')]
-        hint_point = change.get('hint_point')  # [x, y] normalized, or None
 
         drawn_segment = None  # (x1, y1, x2, y2) pixels
         badge_pos = None
@@ -336,12 +305,6 @@ def annotate_changes():
                 c1 = polygon_centroid(poly1)
                 c2 = polygon_centroid(poly2)
                 drawn_segment = find_wall_between_centroids(img_cv, c1, c2)
-
-        if drawn_segment is None and hint_point:
-            # Single-room change with hint: snap nearest Hough line to hint_point
-            hx = hint_point[0] * width
-            hy = hint_point[1] * height
-            drawn_segment = find_nearest_hough_line(img_cv, hx, hy, hough_radius)
 
         if drawn_segment is not None:
             x1s, y1s, x2s, y2s = drawn_segment
