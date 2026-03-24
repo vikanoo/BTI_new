@@ -813,7 +813,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const chatId  = $('Telegram Trigger').first().json.message.chat.id;\n\n// Передаём публичный URL напрямую — OpenAI скачивает изображение сам.\n// base64 не используем: n8n хранит бинарные данные на диске (filesystem-v2).\nconst planUrl = 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/plans/' + chatId + '/plan.png?t=' + Date.now();\n\nconst prompt =\n  'Ты — эксперт по анализу планов БТИ. Проанализируй план квартиры.\\n' +\n  'Верни ТОЛЬКО чистый JSON (без markdown, без пояснений) в точно таком формате:\\n' +\n  '{\"rooms\":[{\"id\":\"room_1\",\"name\":\"Жилая комната 1\",\"region_percent\":{\"x1\":0.05,\"y1\":0.10,\"x2\":0.45,\"y2\":0.55}}],' +\n  '\"shots\":[{\"shot_id\":\"room_1_shot_1\",\"room_id\":\"room_1\",\"room_name\":\"Жилая комната 1\",\"position\":\"северо-западный угол\",\"direction\":\"на юго-восток\",\"instruction\":\"Встаньте в угол и сфотографируйте всё помещение целиком\"}]}\\n' +\n  'Правила:\\n' +\n  '- Найди все помещения: жилые комнаты, кухня, санузел(ы), коридор, балкон/лоджия, кладовая\\n' +\n  '- Для каждого помещения: 1-2 точки съёмки (угол охвата >= 120 градусов)\\n' +\n  '- Инструкции конкретные: с какой точки, куда смотреть\\n' +  '- Все тексты на русском языке\\n' +\n  '- region_percent: нормализованные координаты 0.0-1.0 всего изображения; 0,0 = верхний левый угол, 1,1 = нижний правый. Обводи точные границы каждого помещения по стенам';\n\nconst requestBody = {\n  model: \"gpt-4o-mini\",\n  messages: [{\n    role: \"user\",\n    content: [\n      { type: \"text\", text: prompt },\n      { type: \"image_url\", image_url: { url: planUrl, detail: \"high\" } }\n    ]\n  }],\n  response_format: { type: \"json_object\" },\n  temperature: 0.1,\n  max_tokens: 4096\n};\n\nreturn [{ json: { chatId, requestBodyString: JSON.stringify(requestBody) } }];"
+        "jsCode": "const chatId  = $('Telegram Trigger').first().json.message.chat.id;\n\nconst planUrl = 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/plans/' + chatId + '/plan.png?t=' + Date.now();\n\nconst prompt =\n  'Ты — эксперт по анализу планов БТИ. Проанализируй план квартиры.\\n' +\n  'Верни ТОЛЬКО чистый JSON (без markdown, без пояснений) в точно таком формате:\\n' +\n  '{\"apartment_bounds\":[[0.05,0.08],[0.95,0.08],[0.95,0.92],[0.05,0.92]],' +\n  '\"rooms\":[{\"id\":\"room_1\",\"name\":\"Жилая комната 1\",\"polygon\":[[0.10,0.12],[0.48,0.12],[0.48,0.55],[0.10,0.55]]}],' +\n  '\"shots\":[{\"shot_id\":\"room_1_shot_1\",\"room_id\":\"room_1\",\"room_name\":\"Жилая комната 1\",\"position\":\"северо-западный угол\",\"direction\":\"на юго-восток\",\"instruction\":\"Встаньте в угол и сфотографируйте всё помещение целиком\"}]}' +\n  '\\n' +\n  'Шаг 1: Определи apartment_bounds — полигон внешних стен всей квартиры (4-6 точек [[x,y],...] в координатах 0.0–1.0).\\n' +\n  'Шаг 2: Для каждого помещения задай polygon — 4-6 точек [[x,y],...], строго внутри apartment_bounds.\\n' +\n  'Правила:\\n' +\n  '- Найди все помещения: жилые комнаты, кухня, санузел(ы), коридор, балкон/лоджия, кладовая\\n' +\n  '- polygon: обходи периметр помещения по стенам по часовой стрелке, 4 точки для прямоугольных, 5-6 для L-образных\\n' +\n  '- Для каждого помещения: 1-2 точки съёмки (угол охвата >= 120 градусов)\\n' +\n  '- Инструкции конкретные: с какой точки, куда смотреть\\n' +\n  '- Все тексты на русском языке';\n\nconst requestBody = {\n  model: \"gpt-4o-mini\",\n  messages: [{\n    role: \"user\",\n    content: [\n      { type: \"text\", text: prompt },\n      { type: \"image_url\", image_url: { url: planUrl, detail: \"high\" } }\n    ]\n  }],\n  response_format: { type: \"json_object\" },\n  temperature: 0.1,\n  max_tokens: 4096\n};\n\nreturn [{ json: { chatId, requestBodyString: JSON.stringify(requestBody) } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1517,7 +1517,7 @@
     },
     {
       "parameters": {
-        "url": "https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/database_retriever?select=id,source,chunk",
+        "url": "https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/database_retriever?select=id,content",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -1544,7 +1544,7 @@
     },
     {
       "parameters": {
-        "jsCode": "// Supabase REST returns the whole array as one item\nvar raw = $input.first().json;\nvar fragments = Array.isArray(raw) ? raw : $input.all().map(function(i) { return i.json; });\n\nif (!fragments || fragments.length === 0) {\n  return [{ json: { ragContext: '', fragmentCount: 0 } }];\n}\n\nvar ragContext = fragments.map(function(f) { return f.chunk; }).join('\\n---\\n');\nreturn [{ json: { ragContext: ragContext, fragmentCount: fragments.length } }];\n"
+        "jsCode": "// Supabase REST returns the whole array as one item\nvar raw = $input.first().json;\nvar fragments = Array.isArray(raw) ? raw : $input.all().map(function(i) { return i.json; });\n\nif (!fragments || fragments.length === 0) {\n  return [{ json: { ragContext: '', fragmentCount: 0 } }];\n}\n\nvar ragContext = fragments.map(function(f) { return f.content; }).join('\\n---\\n');\nreturn [{ json: { ragContext: ragContext, fragmentCount: fragments.length } }];\n"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -1696,7 +1696,7 @@
     },
     {
       "parameters": {
-        "jsCode": "var chatId = $('Telegram Trigger').first().json.message.chat.id;\nvar ragContext = $('Code - Format RAG Results').first().json.ragContext || '';\nvar session = $('Supabase - Get Analysis Session').first().json;\nvar planUrl = session.plan_url || '';\nvar shotsJson = session.shots_json\n  ? (typeof session.shots_json === 'string' ? JSON.parse(session.shots_json) : session.shots_json)\n  : [];\nvar shotsStatus = session.shots_status\n  ? (typeof session.shots_status === 'string' ? JSON.parse(session.shots_status) : session.shots_status)\n  : {};\nvar roomsJson = session.rooms_json\n  ? (typeof session.rooms_json === 'string' ? JSON.parse(session.rooms_json) : session.rooms_json)\n  : [];\n\nvar SUPABASE_STORAGE = 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/photos/';\n\n// Build list of received shots with room metadata (preserving order from shots_json)\nvar receivedShots = [];\nfor (var i = 0; i < shotsJson.length; i++) {\n  var shot = shotsJson[i];\n  var shotId = shot.shot_id || shot.id || '';\n  var status = shotsStatus[shotId] || '';\n  if (status === 'received' && shotId) {\n    receivedShots.push({\n      url: SUPABASE_STORAGE + chatId + '/' + shotId + '.jpg',\n      room_id: shot.room_id || '',\n      room_name: shot.room_name || '',\n      position: shot.position || '',\n      direction: shot.direction || ''\n    });\n  }\n}\n\n// Build room list from BTI plan analysis for GPT context\nvar roomsList = roomsJson.length > 0\n  ? 'КОМНАТЫ НА ПЛАНЕ БТИ:\\n' + roomsJson.map(function(r) {\n      return '- room_id: ' + r.id + ', название: ' + r.name;\n    }).join('\\n')\n  : '';\n\nvar systemPrompt = 'Ты — строгий технический инспектор БТИ с 20-летним опытом выявления незаконных перепланировок в России. ' +\n  'Твоя задача — защитить жителей дома от последствий незаконных перепланировок. ' +\n  'Будь педантичен: любое отклонение от плана БТИ должно быть зафиксировано. ' +\n  'Лучше перестраховаться и указать requires_approval, чем пропустить нарушение. ' +\n  'Отвечай только на русском языке. ' +\n  'Всегда возвращай ответ строго в формате JSON без markdown-обёртки.';\n\nvar userText = 'НОРМАТИВЫ ИЗ БАЗЫ ЗНАНИЙ:\\n' + ragContext + '\\n\\n---\\n\\n' +\n  (roomsList ? roomsList + '\\n\\n---\\n\\n' : '') +\n  'ЗАДАНИЕ:\\n' +\n  'Изображение 1 — официальный план БТИ квартиры.\\n' +\n  'Следующие изображения — фотографии реального состояния комнат (каждое предварено текстовой меткой с указанием комнаты).\\n\\n' +\n  'ШАГ 1: Изучи план БТИ — запомни расположение стен, перегородок, дверных проёмов, санузлов, несущих конструкций.\\n' +\n  'ШАГ 2: Для каждой комнаты сравни реальное фото с соответствующей зоной на плане БТИ.\\n' +\n  'ШАГ 3: Зафиксируй любые отклонения: снос/перенос стен, замурованные/новые проёмы, объединение комнат, перенос мокрых зон, изменение площади.\\n' +\n  'ШАГ 4: Классифицируй каждое изменение по нормативам.\\n\\n' +\n  'Формат ответа JSON:\\n' +\n  '{\"confidence\": <0-1>, \"changes\": [{\"room_id\": \"...\", \"type\": \"...\", \"description\": \"...\", \"classification\": \"legal|requires_approval|illegal\", \"recommendation\": \"...\", \"change_region\": {\"x1\": 0.0, \"y1\": 0.0, \"x2\": 1.0, \"y2\": 1.0}}], \"summary\": \"...\"}\\n\\n' +\n  'Допустимые значения type: wall_removal, wall_addition, doorway_change, room_merge, room_split, wet_zone_move, other\\n' +\n  'ОБЯЗАТЕЛЬНОЕ поле change_region — координаты именно изменённого элемента на плане БТИ (не всей комнаты!), нормализованные 0.0-1.0. wall_removal/wall_addition: координаты линии стены (узкий вытянутый прямоугольник вдоль стены). doorway_change: только координаты проёма. room_merge: линия снесённой перегородки. wet_zone_move: новое место мокрой зоны. Не возвращай изменение без change_region.\\n' +\n  'Классификации: legal — разрешено без согласования, requires_approval — требует согласования, illegal — незаконно (несущие стены, мокрые зоны на жилую площадь, газ).\\n' +\n  'ВАЖНО: Если на фото видны отклонения от плана — фиксируй их, даже если не уверен на 100%. Используй requires_approval для спорных случаев.\\n' +\n  'КРИТИЧЕСКИ ВАЖНО: все поля JSON (description, recommendation, summary) пиши ИСКЛЮЧИТЕЛЬНО на русском языке.';\n\nvar contentArray = [{ type: 'text', text: userText }];\nif (planUrl) {\n  contentArray.push({ type: 'image_url', image_url: { url: planUrl, detail: 'high' } });\n}\n// Add each photo with a text label identifying the room\nfor (var j = 0; j < receivedShots.length; j++) {\n  var s = receivedShots[j];\n  var label = 'Фото ' + (j + 1) + ': комната ' + s.room_name + ' (room_id: ' + s.room_id + '), позиция: ' + s.position + ', направление: ' + s.direction;\n  contentArray.push({ type: 'text', text: label });\n  contentArray.push({ type: 'image_url', image_url: { url: s.url, detail: 'high' } });\n}\n\nvar body = {\n  model: 'gpt-4o-mini',\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user', content: contentArray }\n  ],\n  max_tokens: 4000,\n  response_format: { type: 'json_object' }\n};\n\nreturn [{ json: { chatId: chatId, body: JSON.stringify(body), photoCount: receivedShots.length } }];"
+        "jsCode": "var chatId = $('Telegram Trigger').first().json.message.chat.id;\nvar ragContext = $('Code - Format RAG Results').first().json.ragContext || '';\nvar session = $('Supabase - Get Analysis Session').first().json;\nvar planUrl = session.plan_url || '';\nvar shotsJson = session.shots_json\n  ? (typeof session.shots_json === 'string' ? JSON.parse(session.shots_json) : session.shots_json)\n  : [];\nvar shotsStatus = session.shots_status\n  ? (typeof session.shots_status === 'string' ? JSON.parse(session.shots_status) : session.shots_status)\n  : {};\nvar roomsJson = session.rooms_json\n  ? (typeof session.rooms_json === 'string' ? JSON.parse(session.rooms_json) : session.rooms_json)\n  : [];\n\nvar SUPABASE_STORAGE = 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/photos/';\n\nvar receivedShots = [];\nfor (var i = 0; i < shotsJson.length; i++) {\n  var shot = shotsJson[i];\n  var shotId = shot.shot_id || shot.id || '';\n  var status = shotsStatus[shotId] || '';\n  if (status === 'received' && shotId) {\n    receivedShots.push({\n      url: SUPABASE_STORAGE + chatId + '/' + shotId + '.jpg',\n      room_id: shot.room_id || '',\n      room_name: shot.room_name || '',\n      position: shot.position || '',\n      direction: shot.direction || ''\n    });\n  }\n}\n\nvar roomsList = roomsJson.length > 0\n  ? 'КОМНАТЫ НА ПЛАНЕ БТИ:\\n' + roomsJson.map(function(r) {\n      return '- room_id: ' + r.id + ', название: ' + r.name;\n    }).join('\\n')\n  : '';\n\nvar systemPrompt =\n  'Ты — строгий технический инспектор БТИ с 20-летним опытом выявления незаконных перепланировок в России. ' +\n  'Твоя задача — защитить жителей дома от последствий незаконных перепланировок. ' +\n  'Будь педантичен: любое отклонение от плана БТИ должно быть зафиксировано. ' +\n  'Лучше перестраховаться и указать requires_approval, чем пропустить нарушение. ' +\n  'Отвечай только на русском языке. ' +\n  'Всегда возвращай ответ строго в формате JSON без markdown-обёртки.';\n\nvar userText =\n  'НОРМАТИВЫ ИЗ БАЗЫ ЗНАНИЙ:\\n' + ragContext + '\\n\\n---\\n\\n' +\n  (roomsList ? roomsList + '\\n\\n---\\n\\n' : '') +\n  'ЗАДАНИЕ:\\n' +\n  'Изображение 1 — официальный план БТИ квартиры.\\n' +\n  'Следующие изображения — фотографии реального состояния комнат.\\n\\n' +\n  'ШАГ 1: Изучи план БТИ — запомни расположение всех стен, перегородок, дверных проёмов, санузлов.\\n' +\n  'ШАГ 2: Для каждой комнаты сравни фото с планом БТИ.\\n' +\n  'ШАГ 3: Зафиксируй любые структурные отклонения: снос/перенос стен, проёмы, объединение комнат, мокрые зоны.\\n' +\n  'ШАГ 4: Классифицируй каждое изменение по нормативам.\\n\\n' +\n  'ФОРМАТ ОТВЕТА JSON:\\n' +\n  '{\"confidence\":<0-1>,\"changes\":[{\"room_id\":\"...\",\"type\":\"...\",\"description\":\"...\",\"classification\":\"legal|requires_approval|illegal\",\"recommendation\":\"...\",\"wall_segments\":[[x1,y1,x2,y2],...]}],\"summary\":\"...\"}' +\n  '\\n\\n' +\n  'Допустимые type: wall_removal, wall_addition, doorway_change, room_merge, room_split, wet_zone_move, other\\n' +\n  'Классификации: legal=разрешено, requires_approval=требует согласования, illegal=незаконно (несущие стены, мокрые зоны, газ)\\n' +\n  'wall_segments — отрезки изменённых стен/проёмов на плане БТИ: [[x1,y1,x2,y2],...] в координатах 0.0-1.0.\\n' +\n  'Каждый отрезок = линия одной стены или проёма. Не заполняй всю комнату — только линии.\\n' +\n  'Для мебели/отделки без структурных изменений: wall_segments=null.\\n' +\n  'КРИТИЧЕСКИ ВАЖНО: все поля JSON (description, recommendation, summary) пиши ИСКЛЮЧИТЕЛЬНО на русском языке.';\n\nvar contentArray = [{ type: 'text', text: userText }];\nif (planUrl) {\n  contentArray.push({ type: 'image_url', image_url: { url: planUrl, detail: 'high' } });\n}\nfor (var j = 0; j < receivedShots.length; j++) {\n  var s = receivedShots[j];\n  var label = 'Фото ' + (j+1) + ': ' + s.room_name + ' (room_id: ' + s.room_id + '), позиция: ' + s.position + ', направление: ' + s.direction;\n  contentArray.push({ type: 'text', text: label });\n  contentArray.push({ type: 'image_url', image_url: { url: s.url, detail: 'high' } });\n}\n\nvar body = {\n  model: 'gpt-4o',\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user', content: contentArray }\n  ],\n  max_tokens: 4000,\n  response_format: { type: 'json_object' }\n};\n\nreturn [{ json: { chatId: chatId, body: JSON.stringify(body), photoCount: receivedShots.length } }];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -2139,7 +2139,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2336,
+        2528,
         192
       ],
       "id": "http-upload-converted-plan-001"
@@ -2661,6 +2661,98 @@
           "name": "BTI_BOT"
         }
       }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://python-service:5000/crop-plan",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "image",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        2240,
+        192
+      ],
+      "id": "http-crop-plan-pdf-001",
+      "name": "HTTP Request - Crop Plan PDF",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://python-service:5000/crop-plan",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "image",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {
+          "response": {
+            "response": {
+              "responseFormat": "file"
+            }
+          }
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        1952,
+        -176
+      ],
+      "id": "http-crop-plan-photo-001",
+      "name": "HTTP Request - Crop Plan Photo",
+      "continueOnFail": true
+    },
+    {
+      "parameters": {
+        "jsCode": "const cropped = $input.first();\nif (cropped.binary && cropped.binary.data) {\n  return [$input.first()];\n}\n// Crop failed — use original binary from Get a file\nreturn [$('Get a file').first()];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2144,
+        -176
+      ],
+      "id": "code-crop-fallback-photo-001",
+      "name": "Code - Crop Fallback Photo"
+    },
+    {
+      "parameters": {
+        "jsCode": "const cropped = $input.first();\nif (cropped.binary && cropped.binary.data) {\n  return [$input.first()];\n}\n// Crop failed — use original binary from Convert PDF\nreturn [$('HTTP Request - Convert PDF').first()];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2336,
+        192
+      ],
+      "id": "code-crop-fallback-pdf-001",
+      "name": "Code - Crop Fallback PDF"
     }
   ],
   "connections": {
@@ -2885,7 +2977,7 @@
       "main": [
         [
           {
-            "node": "HTTP Request1",
+            "node": "HTTP Request - Crop Plan Photo",
             "type": "main",
             "index": 0
           }
@@ -3430,7 +3522,7 @@
       "main": [
         [
           {
-            "node": "HTTP Request - Upload Converted Plan",
+            "node": "HTTP Request - Crop Plan PDF",
             "type": "main",
             "index": 0
           }
@@ -3613,6 +3705,50 @@
         [
           {
             "node": "Send a text message4",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Crop Plan PDF": {
+      "main": [
+        [
+          {
+            "node": "Code - Crop Fallback PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request - Crop Plan Photo": {
+      "main": [
+        [
+          {
+            "node": "Code - Crop Fallback Photo",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Crop Fallback Photo": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code - Crop Fallback PDF": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request - Upload Converted Plan",
             "type": "main",
             "index": 0
           }
@@ -4497,7 +4633,7 @@
       },
       {
         "parameters": {
-          "jsCode": "const chatId  = $('Telegram Trigger').first().json.message.chat.id;\n\n// Передаём публичный URL напрямую — OpenAI скачивает изображение сам.\n// base64 не используем: n8n хранит бинарные данные на диске (filesystem-v2).\nconst planUrl = 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/plans/' + chatId + '/plan.png?t=' + Date.now();\n\nconst prompt =\n  'Ты — эксперт по анализу планов БТИ. Проанализируй план квартиры.\\n' +\n  'Верни ТОЛЬКО чистый JSON (без markdown, без пояснений) в точно таком формате:\\n' +\n  '{\"rooms\":[{\"id\":\"room_1\",\"name\":\"Жилая комната 1\",\"region_percent\":{\"x1\":0.05,\"y1\":0.10,\"x2\":0.45,\"y2\":0.55}}],' +\n  '\"shots\":[{\"shot_id\":\"room_1_shot_1\",\"room_id\":\"room_1\",\"room_name\":\"Жилая комната 1\",\"position\":\"северо-западный угол\",\"direction\":\"на юго-восток\",\"instruction\":\"Встаньте в угол и сфотографируйте всё помещение целиком\"}]}\\n' +\n  'Правила:\\n' +\n  '- Найди все помещения: жилые комнаты, кухня, санузел(ы), коридор, балкон/лоджия, кладовая\\n' +\n  '- Для каждого помещения: 1-2 точки съёмки (угол охвата >= 120 градусов)\\n' +\n  '- Инструкции конкретные: с какой точки, куда смотреть\\n' +  '- Все тексты на русском языке\\n' +\n  '- region_percent: нормализованные координаты 0.0-1.0 всего изображения; 0,0 = верхний левый угол, 1,1 = нижний правый. Обводи точные границы каждого помещения по стенам';\n\nconst requestBody = {\n  model: \"gpt-4o-mini\",\n  messages: [{\n    role: \"user\",\n    content: [\n      { type: \"text\", text: prompt },\n      { type: \"image_url\", image_url: { url: planUrl, detail: \"high\" } }\n    ]\n  }],\n  response_format: { type: \"json_object\" },\n  temperature: 0.1,\n  max_tokens: 4096\n};\n\nreturn [{ json: { chatId, requestBodyString: JSON.stringify(requestBody) } }];"
+          "jsCode": "const chatId  = $('Telegram Trigger').first().json.message.chat.id;\n\nconst planUrl = 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/plans/' + chatId + '/plan.png?t=' + Date.now();\n\nconst prompt =\n  'Ты — эксперт по анализу планов БТИ. Проанализируй план квартиры.\\n' +\n  'Верни ТОЛЬКО чистый JSON (без markdown, без пояснений) в точно таком формате:\\n' +\n  '{\"apartment_bounds\":[[0.05,0.08],[0.95,0.08],[0.95,0.92],[0.05,0.92]],' +\n  '\"rooms\":[{\"id\":\"room_1\",\"name\":\"Жилая комната 1\",\"polygon\":[[0.10,0.12],[0.48,0.12],[0.48,0.55],[0.10,0.55]]}],' +\n  '\"shots\":[{\"shot_id\":\"room_1_shot_1\",\"room_id\":\"room_1\",\"room_name\":\"Жилая комната 1\",\"position\":\"северо-западный угол\",\"direction\":\"на юго-восток\",\"instruction\":\"Встаньте в угол и сфотографируйте всё помещение целиком\"}]}' +\n  '\\n' +\n  'Шаг 1: Определи apartment_bounds — полигон внешних стен всей квартиры (4-6 точек [[x,y],...] в координатах 0.0–1.0).\\n' +\n  'Шаг 2: Для каждого помещения задай polygon — 4-6 точек [[x,y],...], строго внутри apartment_bounds.\\n' +\n  'Правила:\\n' +\n  '- Найди все помещения: жилые комнаты, кухня, санузел(ы), коридор, балкон/лоджия, кладовая\\n' +\n  '- polygon: обходи периметр помещения по стенам по часовой стрелке, 4 точки для прямоугольных, 5-6 для L-образных\\n' +\n  '- Для каждого помещения: 1-2 точки съёмки (угол охвата >= 120 градусов)\\n' +\n  '- Инструкции конкретные: с какой точки, куда смотреть\\n' +\n  '- Все тексты на русском языке';\n\nconst requestBody = {\n  model: \"gpt-4o-mini\",\n  messages: [{\n    role: \"user\",\n    content: [\n      { type: \"text\", text: prompt },\n      { type: \"image_url\", image_url: { url: planUrl, detail: \"high\" } }\n    ]\n  }],\n  response_format: { type: \"json_object\" },\n  temperature: 0.1,\n  max_tokens: 4096\n};\n\nreturn [{ json: { chatId, requestBodyString: JSON.stringify(requestBody) } }];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -5196,7 +5332,7 @@
       },
       {
         "parameters": {
-          "url": "https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/database_retriever?select=id,source,chunk",
+          "url": "https://phnjdyuwtsqqteyqetgm.supabase.co/rest/v1/database_retriever?select=id,content",
           "sendHeaders": true,
           "headerParameters": {
             "parameters": [
@@ -5223,7 +5359,7 @@
       },
       {
         "parameters": {
-          "jsCode": "// Supabase REST returns the whole array as one item\nvar raw = $input.first().json;\nvar fragments = Array.isArray(raw) ? raw : $input.all().map(function(i) { return i.json; });\n\nif (!fragments || fragments.length === 0) {\n  return [{ json: { ragContext: '', fragmentCount: 0 } }];\n}\n\nvar ragContext = fragments.map(function(f) { return f.chunk; }).join('\\n---\\n');\nreturn [{ json: { ragContext: ragContext, fragmentCount: fragments.length } }];\n"
+          "jsCode": "// Supabase REST returns the whole array as one item\nvar raw = $input.first().json;\nvar fragments = Array.isArray(raw) ? raw : $input.all().map(function(i) { return i.json; });\n\nif (!fragments || fragments.length === 0) {\n  return [{ json: { ragContext: '', fragmentCount: 0 } }];\n}\n\nvar ragContext = fragments.map(function(f) { return f.content; }).join('\\n---\\n');\nreturn [{ json: { ragContext: ragContext, fragmentCount: fragments.length } }];\n"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
@@ -5375,7 +5511,7 @@
       },
       {
         "parameters": {
-          "jsCode": "var chatId = $('Telegram Trigger').first().json.message.chat.id;\nvar ragContext = $('Code - Format RAG Results').first().json.ragContext || '';\nvar session = $('Supabase - Get Analysis Session').first().json;\nvar planUrl = session.plan_url || '';\nvar shotsJson = session.shots_json || [];\nvar shotsStatus = session.shots_status || {};\n\nvar SUPABASE_STORAGE = 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/photos/';\n\n// Build photo URLs for received shots (preserving order from shots_json)\nvar photoItems = [];\nfor (var i = 0; i < shotsJson.length; i++) {\n  var shot = shotsJson[i];\n  var shotId = shot.shot_id || shot.id || '';\n  var status = shotsStatus[shotId] || '';\n  if (status === 'received' && shotId) {\n    photoItems.push(SUPABASE_STORAGE + chatId + '/' + shotId + '.jpg');\n  }\n}\n\nvar systemPrompt = 'Ты - эксперт по проверке перепланировок квартир в России. '+ 'Анализируй план БТИ и фотографии, определяй отклонения от плана. '+ 'Отвечай только на русском языке. '+ 'Всегда возвращай ответ строго в формате JSON без markdown-обертки.';\n\nvar userText = 'НОРМАТИВЫ ИЗ БАЗЫ ЗНАНИЙ:\\n' + ragContext + '\\n\\n---\\n\\n'+ 'Задание: Проанализируй план БТИ (первое изображение) и фотографии комнат.\\n\\n'+ 'Определи наличие перепланировок, которые отличаются от плана БТИ.\\n'+ 'Классифицируй каждое изменение по нормативам.\\n\\n'+ 'Верни JSON строго в формате:\\n'+ '{\"confidence\": <0-1>, \"changes\": [{\"room_id\": \"...\", \"type\": \"...\", \"description\": \"...\", \"classification\": \"legal|requires_approval|illegal\", \"recommendation\": \"...\"}], \"summary\": \"...\"}\\n\\n'+ 'Классификации: legal - изменений нет или разрешено, requires_approval - требует согласования, illegal - незаконно (несущие стены, мокрые зоны, газ).\\n'+ 'Если перепланировок нет - верни пустой массив changes, confidence близкий к 1.';\n\nvar contentArray = [{ type: 'text', text: userText }];\nif (planUrl) {\n  contentArray.push({ type: 'image_url', image_url: { url: planUrl, detail: 'high' } });\n}\nfor (var j = 0; j < photoItems.length; j++) {\n  contentArray.push({ type: 'image_url', image_url: { url: photoItems[j], detail: 'high' } });\n}\n\nvar body = {\n  model: 'gpt-4o-mini',\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user', content: contentArray }\n  ],\n  max_tokens: 2000,\n  response_format: { type: 'json_object' }\n};\n\nreturn [{ json: { chatId: chatId, body: JSON.stringify(body), photoCount: photoItems.length } }];"
+          "jsCode": "var chatId = $('Telegram Trigger').first().json.message.chat.id;\nvar ragContext = $('Code - Format RAG Results').first().json.ragContext || '';\nvar session = $('Supabase - Get Analysis Session').first().json;\nvar planUrl = session.plan_url || '';\nvar shotsJson = session.shots_json || [];\nvar shotsStatus = session.shots_status || {};\n\nvar SUPABASE_STORAGE = 'https://phnjdyuwtsqqteyqetgm.supabase.co/storage/v1/object/public/bti-files/photos/';\n\n// Build photo URLs for received shots (preserving order from shots_json)\nvar photoItems = [];\nfor (var i = 0; i < shotsJson.length; i++) {\n  var shot = shotsJson[i];\n  var shotId = shot.shot_id || shot.id || '';\n  var status = shotsStatus[shotId] || '';\n  if (status === 'received' && shotId) {\n    photoItems.push(SUPABASE_STORAGE + chatId + '/' + shotId + '.jpg');\n  }\n}\n\nvar systemPrompt = 'Ты - эксперт по проверке перепланировок квартир в России. '+ 'Анализируй план БТИ и фотографии, определяй отклонения от плана. '+ 'Отвечай только на русском языке. '+ 'Всегда возвращай ответ строго в формате JSON без markdown-обертки.';\n\nvar userText = 'НОРМАТИВЫ ИЗ БАЗЫ ЗНАНИЙ:\\n' + ragContext + '\\n\\n---\\n\\n'+ 'Задание: Проанализируй план БТИ (первое изображение) и фотографии комнат.\\n\\n'+ 'Определи наличие перепланировок, которые отличаются от плана БТИ.\\n'+ 'Классифицируй каждое изменение по нормативам.\\n\\n'+ 'Верни JSON строго в формате:\\n'+ '{\"confidence\": <0-1>, \"changes\": [{\"room_id\": \"...\", \"type\": \"...\", \"description\": \"...\", \"classification\": \"legal|requires_approval|illegal\", \"recommendation\": \"...\", \"change_region\": [[x,y],...]}], \"summary\": \"...\"}\\n\\n'+ 'Классификации: legal - изменений нет или разрешено, requires_approval - требует согласования, illegal - незаконно (несущие стены, мокрые зоны, газ).\\n'+ 'Если перепланировок нет - верни пустой массив changes, confidence близкий к 1.';\n\nvar contentArray = [{ type: 'text', text: userText }];\nif (planUrl) {\n  contentArray.push({ type: 'image_url', image_url: { url: planUrl, detail: 'high' } });\n}\nfor (var j = 0; j < photoItems.length; j++) {\n  contentArray.push({ type: 'image_url', image_url: { url: photoItems[j], detail: 'high' } });\n}\n\nvar body = {\n  model: 'gpt-4o-mini',\n  messages: [\n    { role: 'system', content: systemPrompt },\n    { role: 'user', content: contentArray }\n  ],\n  max_tokens: 2000,\n  response_format: { type: 'json_object' }\n};\n\nreturn [{ json: { chatId: chatId, body: JSON.stringify(body), photoCount: photoItems.length } }];"
         },
         "type": "n8n-nodes-base.code",
         "typeVersion": 2,
