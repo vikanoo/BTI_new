@@ -41,7 +41,19 @@ def polygon_centroid(pts):
     return cx, cy
 
 
-def find_wall_between_centroids(img_cv, c1, c2, strip_fraction=0.15, min_cos_perp=0.5):
+def preprocess_for_hough(img_cv):
+    """Preprocess image to enhance wall lines for Hough detection.
+    Morphological closing fills small gaps in wall lines and suppresses
+    isolated thin features (dimension arrows, hatching, text strokes).
+    """
+    gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
+    _, binary = cv2.threshold(gray, 220, 255, cv2.THRESH_BINARY_INV)
+    kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+    closed = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
+    return closed
+
+
+def find_wall_between_centroids(img_cv, c1, c2, strip_fraction=0.30, min_cos_perp=0.5):
     """Find the wall between two rooms using centroid-based strip search.
 
     Algorithm:
@@ -66,10 +78,9 @@ def find_wall_between_centroids(img_cv, c1, c2, strip_fraction=0.15, min_cos_per
     ux, uy = dx / L, dy / L   # unit vector C1→C2
     strip_w = L * strip_fraction
 
-    gray = cv2.cvtColor(img_cv, cv2.COLOR_BGR2GRAY)
-    _, binary = cv2.threshold(gray, 220, 255, cv2.THRESH_BINARY_INV)
+    binary = preprocess_for_hough(img_cv)
     lines = cv2.HoughLinesP(binary, 1, np.pi / 180, threshold=40,
-                             minLineLength=20, maxLineGap=15)
+                             minLineLength=30, maxLineGap=15)
     if lines is None:
         return None
 
@@ -109,6 +120,49 @@ def find_wall_between_centroids(img_cv, c1, c2, strip_fraction=0.15, min_cos_per
         if score < best_score:
             best_score = score
             best_line = (x1, y1, x2, y2)
+
+    return best_line
+
+
+def find_longest_hough_in_bbox(img_cv, poly, width, height, margin=0.20):
+    """Find the longest Hough line segment within the bounding box of a room polygon.
+    Used for single-room changes where we don't have a second centroid to guide search.
+
+    poly:   list of pixel (x, y) tuples defining the room polygon
+    margin: fractional expansion of the bounding box on each side
+    Returns (x1, y1, x2, y2) or None.
+    """
+    if not poly:
+        return None
+
+    xs = [p[0] for p in poly]
+    ys = [p[1] for p in poly]
+    bx1_f, by1_f = min(xs), min(ys)
+    bx2_f, by2_f = max(xs), max(ys)
+
+    mw = (bx2_f - bx1_f) * margin
+    mh = (by2_f - by1_f) * margin
+    bx1 = max(0, int(bx1_f - mw))
+    by1 = max(0, int(by1_f - mh))
+    bx2 = min(width,  int(bx2_f + mw))
+    by2 = min(height, int(by2_f + mh))
+
+    binary = preprocess_for_hough(img_cv)
+    lines = cv2.HoughLinesP(binary, 1, np.pi / 180, threshold=40,
+                             minLineLength=30, maxLineGap=15)
+    if lines is None:
+        return None
+
+    best_line = None
+    best_len = 0
+    for ln in lines:
+        x1, y1, x2, y2 = ln[0]
+        mx, my = (x1 + x2) / 2.0, (y1 + y2) / 2.0
+        if bx1 <= mx <= bx2 and by1 <= my <= by2:
+            seg_len = math.hypot(x2 - x1, y2 - y1)
+            if seg_len > best_len:
+                best_len = seg_len
+                best_line = (x1, y1, x2, y2)
 
     return best_line
 
@@ -245,9 +299,9 @@ def annotate_changes():
     Colors: red = illegal, yellow = requires_approval
 
     Strategy per change:
-      - 2 rooms: find wall via centroid-to-centroid strip search + Hough
-      - 1 room + hint_point: snap nearest Hough line to hint_point
-      - fallback: draw room polygon outline
+      - 2 rooms:  centroid-strip Hough search → line or badge-only
+      - 1 room:   longest Hough line inside room bbox → line or badge-only
+      - No polygon outline fallback — wrong outline is worse than no outline.
     """
     if 'image' not in request.files:
         return {'error': 'No image provided'}, 400
@@ -296,7 +350,7 @@ def annotate_changes():
         badge_pos = None
 
         if len(affected_ids) >= 2:
-            # Wall between two rooms: line C1→C2, Hough search in the strip
+            # Wall between two rooms: centroid-strip Hough search
             r1 = room_map.get(affected_ids[0], {})
             r2 = room_map.get(affected_ids[1], {})
             poly1 = region_to_polygon(r1.get('polygon') or r1.get('region_percent', {}), width, height)
@@ -305,24 +359,23 @@ def annotate_changes():
                 c1 = polygon_centroid(poly1)
                 c2 = polygon_centroid(poly2)
                 drawn_segment = find_wall_between_centroids(img_cv, c1, c2)
+                if badge_pos is None:
+                    badge_pos = c1
+
+        elif len(affected_ids) == 1:
+            # Single room: find longest wall line inside room bbox
+            room = room_map.get(affected_ids[0], {})
+            poly = region_to_polygon(
+                room.get('polygon') or room.get('region_percent', {}), width, height
+            )
+            if poly:
+                drawn_segment = find_longest_hough_in_bbox(img_cv, poly, width, height)
+                badge_pos = polygon_centroid(poly)
 
         if drawn_segment is not None:
             x1s, y1s, x2s, y2s = drawn_segment
             draw.line([(x1s, y1s), (x2s, y2s)], fill=line_color, width=line_w * 2)
             badge_pos = ((x1s + x2s) // 2, (y1s + y2s) // 2)
-        else:
-            # Fallback: draw room polygon outline
-            for room_id in affected_ids:
-                room = room_map.get(room_id, {})
-                poly = region_to_polygon(
-                    room.get('polygon') or room.get('region_percent', {}), width, height
-                )
-                if not poly:
-                    continue
-                for i in range(len(poly)):
-                    draw.line([poly[i], poly[(i + 1) % len(poly)]], fill=line_color, width=line_w)
-                if badge_pos is None:
-                    badge_pos = polygon_centroid(poly)
 
         if badge_pos:
             mx, my = badge_pos
