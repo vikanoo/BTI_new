@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-03-25T06:48:02.048Z",
+  "updatedAt": "2026-03-25T07:04:46.911Z",
   "createdAt": "2026-03-17T08:49:57.940Z",
   "id": "305RmoqLIGnuYonX",
   "name": "BTI_NEW",
@@ -665,7 +665,7 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        2960,
+        3392,
         -176
       ],
       "id": "fd49dc1e-3545-4758-9ad2-8595ddad11de",
@@ -688,7 +688,7 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        3168,
+        3600,
         -176
       ],
       "id": "e90a14a3-71d9-40cc-87ec-5006aad49823",
@@ -805,7 +805,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        2144,
+        2592,
         -176
       ],
       "id": "1ae98b25-cd63-4132-b3da-a5485db392e4",
@@ -818,7 +818,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3392,
+        3824,
         -176
       ],
       "id": "fc116ce3-51c6-48b2-9d18-7f739bfddb24",
@@ -852,15 +852,15 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        3632,
+        4064,
         -176
       ],
       "id": "93876821-54aa-4474-85f5-b81ca5060de6",
       "name": "HTTP Request - Gemini",
-      "continueOnFail": true,
       "retryOnFail": true,
       "maxTries": 3,
-      "waitBetweenTries": 3000
+      "waitBetweenTries": 3000,
+      "continueOnFail": true
     },
     {
       "parameters": {
@@ -869,7 +869,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        3872,
+        4304,
         -176
       ],
       "id": "91eb5d68-3d8a-457e-ac76-9495a3e555db",
@@ -912,7 +912,7 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        5040,
+        5472,
         -160
       ],
       "id": "2cb84681-f748-4ccd-be55-7da7d1a2ec95",
@@ -936,7 +936,7 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        5280,
+        5712,
         -160
       ],
       "id": "76283c6f-fdfb-42aa-a31a-63edfe70b397",
@@ -1179,7 +1179,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2768,
+        3200,
         -176
       ],
       "id": "code-extract-base64-bti",
@@ -1453,7 +1453,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2560,
+        2992,
         -176
       ]
     },
@@ -1729,13 +1729,12 @@
         "rawContentType": "application/json",
         "body": "={{ $json.body }}",
         "options": {
-          "timeout": 120000,
           "batching": {
             "batch": {
-              "batchSize": 1,
-              "batchInterval": 1000
+              "batchSize": 1
             }
-          }
+          },
+          "timeout": 120000
         }
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -1746,10 +1745,10 @@
       ],
       "id": "http-gpt4o-vision-node-001",
       "name": "HTTP Request - GPT4o Vision",
-      "continueOnFail": true,
       "retryOnFail": true,
       "maxTries": 3,
-      "waitBetweenTries": 65000
+      "waitBetweenTries": 65000,
+      "continueOnFail": true
     },
     {
       "parameters": {
@@ -1786,13 +1785,12 @@
         "rawContentType": "application/json",
         "body": "={{ $json.body }}",
         "options": {
-          "timeout": 120000,
           "batching": {
             "batch": {
-              "batchSize": 1,
-              "batchInterval": 1000
+              "batchSize": 1
             }
-          }
+          },
+          "timeout": 120000
         }
       },
       "type": "n8n-nodes-base.httpRequest",
@@ -1803,10 +1801,10 @@
       ],
       "id": "http-gpt4o-classify-node-001",
       "name": "HTTP Request - GPT4o Classify",
-      "continueOnFail": true,
       "retryOnFail": true,
       "maxTries": 3,
-      "waitBetweenTries": 65000
+      "waitBetweenTries": 65000,
+      "continueOnFail": true
     },
     {
       "parameters": {
@@ -1855,7 +1853,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        5360,
+        5840,
         528
       ],
       "id": "save-analysis-result-node-001",
@@ -1881,7 +1879,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        5584,
+        6048,
         528
       ],
       "id": "step6-code-build-report",
@@ -1899,7 +1897,7 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        6480,
+        6944,
         528
       ],
       "id": "step6-telegram-send-report",
@@ -1939,7 +1937,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2.3,
       "position": [
-        6720,
+        7184,
         528
       ],
       "id": "step6-if-low-confidence",
@@ -1957,7 +1955,7 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        6960,
+        7424,
         320
       ],
       "id": "step6-telegram-notify-manager",
@@ -2004,7 +2002,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        7200,
+        7664,
         320
       ],
       "id": "step6-reset-session-manager",
@@ -2021,7 +2019,7 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        7440,
+        7904,
         320
       ],
       "id": "step6-analysis-done-manager",
@@ -2068,7 +2066,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        6960,
+        7424,
         752
       ],
       "id": "step6-reset-session-normal",
@@ -2085,7 +2083,7 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        7200,
+        7664,
         752
       ],
       "id": "step6-analysis-done-normal",
@@ -2110,8 +2108,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        1776,
-        192
+        1760,
+        48
       ],
       "id": "telegram-pdf-received-001",
       "webhookId": "99e112a4-725e-4383-a148-f335b8af92fd",
@@ -2125,15 +2123,15 @@
     {
       "parameters": {
         "resource": "file",
-        "operation": "get",
-        "fileId": "={{ $('Telegram Trigger').first().json.message.document.file_id }}"
+        "fileId": "={{ $('Telegram Trigger').first().json.message.document.file_id }}",
+        "additionalFields": {}
       },
       "name": "Get Telegram File PDF",
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
         1952,
-        192
+        48
       ],
       "id": "get-telegram-file-pdf-001",
       "webhookId": "43e984ad-0d18-4ce2-950d-3c56a059b232",
@@ -2172,7 +2170,7 @@
       "typeVersion": 4.2,
       "position": [
         2144,
-        192
+        48
       ],
       "id": "http-convert-pdf-001"
     },
@@ -2202,8 +2200,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        2528,
-        192
+        2720,
+        48
       ],
       "id": "http-upload-converted-plan-001"
     },
@@ -2222,7 +2220,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        4320,
+        4752,
         -160
       ],
       "id": "http-dl-plan-annotation-001"
@@ -2258,7 +2256,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        4560,
+        4992,
         -160
       ],
       "id": "http-annotate-rooms-001"
@@ -2277,7 +2275,7 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        4800,
+        5232,
         -160
       ],
       "id": "telegram-send-annotated-plan-001",
@@ -2304,7 +2302,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        5792,
+        6256,
         528
       ],
       "id": "http-dl-plan-changes-001"
@@ -2344,7 +2342,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        6032,
+        6496,
         528
       ],
       "id": "http-annotate-changes-001"
@@ -2362,7 +2360,7 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        6256,
+        6720,
         528
       ],
       "id": "telegram-send-annotated-changes-001",
@@ -2501,7 +2499,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        4080,
+        4512,
         -176
       ],
       "id": "if-gemini-error-001"
@@ -2518,7 +2516,7 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        4320,
+        4752,
         -368
       ],
       "id": "telegram-gemini-error-001",
@@ -2565,7 +2563,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        4560,
+        4992,
         -368
       ],
       "id": "http-reset-gemini-err-001"
@@ -2599,7 +2597,7 @@
       "type": "n8n-nodes-base.if",
       "typeVersion": 2,
       "position": [
-        5088,
+        5584,
         512
       ],
       "id": "if-gpt4o-error-001"
@@ -2616,8 +2614,8 @@
       "type": "n8n-nodes-base.telegram",
       "typeVersion": 1.2,
       "position": [
-        5360,
-        336
+        5840,
+        320
       ],
       "id": "telegram-gpt4o-error-001",
       "webhookId": "2291c7fd-cbcc-427f-8dc7-d92c4b0a8870",
@@ -2663,8 +2661,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        5568,
-        336
+        6048,
+        320
       ],
       "id": "http-reset-gpt4o-err-001"
     },
@@ -2751,8 +2749,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        2240,
-        192
+        2352,
+        48
       ],
       "id": "http-crop-plan-pdf-001",
       "name": "HTTP Request - Crop Plan PDF",
@@ -2784,7 +2782,7 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        1952,
+        2032,
         -176
       ],
       "id": "http-crop-plan-photo-001",
@@ -2798,7 +2796,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2144,
+        2304,
         -176
       ],
       "id": "code-crop-fallback-photo-001",
@@ -2811,8 +2809,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2336,
-        192
+        2528,
+        48
       ],
       "id": "code-crop-fallback-pdf-001",
       "name": "Code - Crop Fallback PDF"
@@ -3845,9 +3843,9 @@
     "templateCredsSetupCompleted": true
   },
   "pinData": {},
-  "versionId": "430512f7-c6cc-4ee8-a30d-486aa4ba320a",
+  "versionId": "c3202800-367c-4603-8fbb-a85a635c7d9c",
   "activeVersionId": "430512f7-c6cc-4ee8-a30d-486aa4ba320a",
-  "versionCounter": 333,
+  "versionCounter": 334,
   "triggerCount": 1,
   "shared": [
     {
