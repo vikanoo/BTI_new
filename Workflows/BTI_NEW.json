@@ -2227,42 +2227,6 @@
     },
     {
       "parameters": {
-        "method": "POST",
-        "url": "http://python-service:5000/annotate-rooms",
-        "sendBody": true,
-        "contentType": "multipart-form-data",
-        "bodyParameters": {
-          "parameters": [
-            {
-              "parameterType": "formBinaryData",
-              "name": "image",
-              "inputDataFieldName": "data"
-            },
-            {
-              "name": "rooms_json",
-              "value": "={{ JSON.stringify($('Code - Parse Gemini').first().json.rooms_json) }}"
-            }
-          ]
-        },
-        "options": {
-          "response": {
-            "response": {
-              "responseFormat": "file"
-            }
-          }
-        }
-      },
-      "name": "HTTP Request - Annotate Rooms",
-      "type": "n8n-nodes-base.httpRequest",
-      "typeVersion": 4.2,
-      "position": [
-        4992,
-        -160
-      ],
-      "id": "http-annotate-rooms-001"
-    },
-    {
-      "parameters": {
         "operation": "sendPhoto",
         "chatId": "={{ $('Code - Parse Gemini').first().json.chatId }}",
         "binaryData": true,
