@@ -85,7 +85,7 @@ def find_wall_between_centroids(img_cv, c1, c2, strip_fraction=0.30, min_cos_per
         return None
 
     best_line = None
-    best_score = float('inf')
+    best_score = 0.0  # best = longest segment passing all filters
 
     for ln in lines:
         x1, y1, x2, y2 = ln[0]
@@ -113,12 +113,19 @@ def find_wall_between_centroids(img_cv, c1, c2, strip_fraction=0.30, min_cos_per
         if cos_perp < min_cos_perp:
             continue
 
-        # Score: closeness to centre of C1→C2 + perpendicularity deviation
-        dist_from_center = abs(proj_along - L / 2.0)
-        score = dist_from_center + (1.0 - cos_perp) * L
+        # Key filter: C1 and C2 must be on OPPOSITE sides of this line.
+        # The shared wall between two rooms always separates their centroids.
+        # Normal to the Hough line: (-hdy/hL, hdx/hL)
+        nx, ny = -hdy / hL, hdx / hL
+        sign1 = (c1[0] - mx) * nx + (c1[1] - my) * ny
+        sign2 = (c2[0] - mx) * nx + (c2[1] - my) * ny
+        if sign1 * sign2 >= 0:   # same side → not the wall between these rooms
+            continue
 
-        if score < best_score:
-            best_score = score
+        # Score: prefer longer segments (longer = more wall-like, less noise)
+        seg_len = math.hypot(x2 - x1, y2 - y1)
+        if seg_len > best_score:
+            best_score = seg_len
             best_line = (x1, y1, x2, y2)
 
     return best_line
