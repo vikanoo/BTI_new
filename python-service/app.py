@@ -199,52 +199,76 @@ def convert_pdf():
     return send_file(img_io, mimetype='image/png', download_name='plan.png')
 
 
-def perspective_transform(image, corners_pct):
-    h_img, w_img = image.shape[:2]
-
-    # Преобразуем проценты от ИИ в пиксели
-    pts1 = np.float32([
-        [c['x'] * w_img / 100, c['y'] * h_img / 100] for c in corners_pct
-    ])
-
-    # Вычисляем размеры нового изображения
-    width = int(max(np.linalg.norm(pts1[0] - pts1[1]), np.linalg.norm(pts1[2] - pts1[3])))
-    height = int(max(np.linalg.norm(pts1[0] - pts1[3]), np.linalg.norm(pts1[1] - pts1[2])))
-
-    pts2 = np.float32([[0, 0], [width, 0], [width, height], [0, height]])
-
-    # Матрица трансформации
-    matrix = cv2.getPerspectiveTransform(pts1, pts2)
-    result = cv2.warpPerspective(image, matrix, (width, height))
-    return result
+def order_points(pts):
+    """ Упорядочивает точки: [top-left, top-right, bottom-right, bottom-left] """
+    rect = np.zeros((4, 2), dtype="float32")
+    s = pts.sum(axis=1)
+    rect[0] = pts[np.argmin(s)]
+    rect[2] = pts[np.argmax(s)]
+    diff = np.diff(pts, axis=1)
+    rect[1] = pts[np.argmin(diff)]
+    rect[3] = pts[np.argmax(diff)]
+    return rect
 
 
 @app.route('/crop-plan', methods=['POST'])
 def crop_plan():
-    """
-    Applies perspective transform to straighten a floor plan photo.
-    Input:  multipart/form-data { image: <binary>, corners: <JSON array of 4 {x, y} in percent> }
-    Output: JPEG binary (straightened)
-    """
-    if 'image' not in request.files:
-        return {'error': 'No image provided'}, 400
-    if 'corners' not in request.form:
-        return {'error': 'No corners provided'}, 400
+    try:
+        # 1. Получаем координаты углов из Query-параметров
+        corners_raw = request.args.get('corners')
+        if not corners_raw:
+            return json.dumps({"error": "No corners coordinates provided in query"}), 400, {'Content-Type': 'application/json'}
 
-    img_bytes = request.files['image'].read()
-    nparr = np.frombuffer(img_bytes, np.uint8)
-    img_cv = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+        corners_data = json.loads(corners_raw)
+        # Ожидаем формат [{"x":... , "y":...}, ...]
 
-    if img_cv is None:
-        return {'error': 'Failed to decode image'}, 400
+        # 2. Получаем файл изображения
+        if 'image' not in request.files:
+            return json.dumps({"error": "No image file provided"}), 400, {'Content-Type': 'application/json'}
 
-    corners = json.loads(request.form['corners'])
-    final_img = perspective_transform(img_cv, corners)
+        file = request.files['image']
+        img_bytes = file.read()
+        nparr = np.frombuffer(img_bytes, np.uint8)
+        img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
 
-    _, buf = cv2.imencode('.jpg', final_img, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
-    img_io = io.BytesIO(buf.tobytes())
-    img_io.seek(0)
-    return send_file(img_io, mimetype='image/jpeg', download_name='cropped_plan.jpg')
+        h_img, w_img = img.shape[:2]
+
+        # 3. Преобразуем проценты ИИ в пиксели
+        pts = []
+        for c in corners_data:
+            pts.append([float(c['x']) * w_img / 100, float(c['y']) * h_img / 100])
+
+        pts = np.array(pts, dtype="float32")
+        rect = order_points(pts)
+        (tl, tr, br, bl) = rect
+
+        # 4. Вычисляем ширину и высоту нового изображения
+        width_a = np.sqrt(((br[0] - bl[0]) ** 2) + ((br[1] - bl[1]) ** 2))
+        width_b = np.sqrt(((tr[0] - tl[0]) ** 2) + ((tr[1] - tl[1]) ** 2))
+        max_width = max(int(width_a), int(width_b))
+
+        height_a = np.sqrt(((tr[0] - br[0]) ** 2) + ((tr[1] - br[1]) ** 2))
+        height_b = np.sqrt(((tl[0] - bl[0]) ** 2) + ((tl[1] - bl[1]) ** 2))
+        max_height = max(int(height_a), int(height_b))
+
+        # 5. Выполняем Perspective Warp (выравнивание)
+        dst = np.array([
+            [0, 0],
+            [max_width - 1, 0],
+            [max_width - 1, max_height - 1],
+            [0, max_height - 1]], dtype="float32")
+
+        m = cv2.getPerspectiveTransform(rect, dst)
+        warped = cv2.warpPerspective(img, m, (max_width, max_height))
+
+        # 6. Возвращаем результат как файл
+        _, buffer = cv2.imencode('.jpg', warped, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+        io_buf = io.BytesIO(buffer)
+
+        return send_file(io_buf, mimetype='image/jpeg', as_attachment=True, download_name='cropped_plan.jpg')
+
+    except Exception as e:
+        return json.dumps({"error": str(e)}), 500, {'Content-Type': 'application/json'}
 
 
 @app.route('/annotate-rooms', methods=['POST'])
