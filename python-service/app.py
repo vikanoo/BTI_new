@@ -337,95 +337,88 @@ def detect_rooms():
     return json.dumps({"detected_rooms": rooms}), 200, {'Content-Type': 'application/json'}
 
 
-def generate_safe_shots(room_bbox, room_id):
-    x1, y1, x2, y2 = room_bbox['x1'], room_bbox['y1'], room_bbox['x2'], room_bbox['y2']
+def process_full_photo(img, ai_json):
+    h_img, w_img = img.shape[:2]
 
-    W = x2 - x1
-    H = y2 - y1
-    margin_w = W * 0.15
-    margin_h = H * 0.15
+    # 1. Находим лист бумаги на столе
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    _, thresh_paper = cv2.threshold(blurred, 150, 255, cv2.THRESH_BINARY)
 
-    return [
-        # Точка 1: Геометрический центр
-        {
-            "shot_id": f"{room_id}_center",
-            "pos": "центр",
-            "x": round(x1 + W / 2, 2),
-            "y": round(y1 + H / 2, 2),
-            "direction": "панорамный обзор",
-            "instruction": "Съемка из центра комнаты, охват всех стен"
-        },
-        # Точка 2: Верхний левый угол с отступом
-        {
-            "shot_id": f"{room_id}_corner_tl",
-            "pos": "в углу",
-            "x": round(x1 + margin_w, 2),
-            "y": round(y1 + margin_h, 2),
-            "direction": "на противоположный угол",
-            "instruction": "Съемка из угла, камера направлена вглубь комнаты"
-        },
-        # Точка 3: Нижний правый угол с отступом
-        {
-            "shot_id": f"{room_id}_corner_br",
-            "pos": "в углу",
-            "x": round(x2 - margin_w, 2),
-            "y": round(y2 - margin_h, 2),
-            "direction": "на входную группу",
-            "instruction": "Съемка из угла, захват дверного проема"
-        }
-    ]
+    contours_paper, _ = cv2.findContours(thresh_paper, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    if not contours_paper:
+        return ai_json  # Если лист не найден, возвращаем как есть
+
+    # Берем самый большой контур (лист БТИ)
+    paper_cnt = max(contours_paper, key=cv2.contourArea)
+    px, py, pw, ph = cv2.boundingRect(paper_cnt)
+
+    # 2. Ищем комнаты ТОЛЬКО внутри области листа
+    roi = gray[py:py + ph, px:px + pw]
+    thresh_rooms = cv2.adaptiveThreshold(roi, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+                                         cv2.THRESH_BINARY_INV, 11, 2)
+
+    # "Жирним" стены внутри листа
+    kernel = np.ones((3, 3), np.uint8)
+    dilated = cv2.dilate(thresh_rooms, kernel, iterations=1)
+    contours_rooms, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+    geo_rooms = []
+    for cnt in contours_rooms:
+        if cv2.contourArea(cnt) > (pw * ph * 0.01):  # Минимум 1% от площади листа
+            rx, ry, rw, rh = cv2.boundingRect(cnt)
+            # Переводим координаты в глобальные координаты всего фото (%)
+            geo_rooms.append({
+                'x1': ((px + rx) / w_img) * 100,
+                'y1': ((py + ry) / h_img) * 100,
+                'x2': ((px + rx + rw) / w_img) * 100,
+                'y2': ((py + ry + rh) / h_img) * 100
+            })
+
+    # 3. Приземляем точки ИИ в найденные гео-комнаты
+    for shot in ai_json.get('shots', []):
+        raw_x = shot.get('x', 50)
+        raw_y = shot.get('y', 50)
+
+        for room in geo_rooms:
+            if room['x1'] <= raw_x <= room['x2'] and room['y1'] <= raw_y <= room['y2']:
+                margin_w = (room['x2'] - room['x1']) * 0.15
+                margin_h = (room['y2'] - room['y1']) * 0.15
+
+                if shot.get('position') == "центр":
+                    shot['x'] = round(room['x1'] + (room['x2'] - room['x1']) / 2, 1)
+                    shot['y'] = round(room['y1'] + (room['y2'] - room['y1']) / 2, 1)
+                else:
+                    # Сдвигаем точку от стены, если она слишком близко
+                    shot['x'] = round(max(room['x1'] + margin_w, min(raw_x, room['x2'] - margin_w)), 1)
+                    shot['y'] = round(max(room['y1'] + margin_h, min(raw_y, room['y2'] - margin_h)), 1)
+                break
+
+    return ai_json
 
 
 @app.route('/detect-rooms-with-shots', methods=['POST'])
 def detect_rooms_with_shots():
     """
-    Detects rooms geometrically and generates safe photo shot positions for each room.
-    Input:  multipart/form-data { image: <binary> }
-    Output: JSON { rooms: [...], shots: [...] }
+    Finds paper sheet, detects rooms inside it, then snaps AI shot points into safe positions.
+    Input:  multipart/form-data { image: <binary> } + query param ai_data=<JSON>
+    Output: JSON (updated ai_json with corrected shot coordinates)
     """
+    ai_data_raw = request.args.get('ai_data')
+    if not ai_data_raw:
+        return json.dumps({"error": "No ai_data query param provided"}), 400, {'Content-Type': 'application/json'}
+
+    ai_json = json.loads(ai_data_raw)
+
     if 'image' not in request.files:
-        return {'error': 'No image provided'}, 400
+        return json.dumps({"error": "No image file provided"}), 400, {'Content-Type': 'application/json'}
 
-    image_bytes = request.files['image'].read()
-    nparr = np.frombuffer(image_bytes, np.uint8)
-    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    img_array = np.frombuffer(request.files['image'].read(), np.uint8)
+    img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
     if img is None:
-        return {'error': 'Failed to decode image'}, 400
+        return json.dumps({"error": "Failed to decode image"}), 400, {'Content-Type': 'application/json'}
 
-    h_img, w_img = img.shape[:2]
-
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
-    gray = clahe.apply(gray)
-    thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                   cv2.THRESH_BINARY_INV, 11, 2)
-    kernel = np.ones((3, 3), np.uint8)
-    opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=1)
-    dilate_kernel = np.ones((5, 5), np.uint8)
-    dilated = cv2.dilate(opening, dilate_kernel, iterations=2)
-    contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    result = {"rooms": [], "shots": []}
-
-    for i, cnt in enumerate(contours):
-        area = cv2.contourArea(cnt)
-        if area > (h_img * w_img * 0.005):
-            x, y, w, h = cv2.boundingRect(cnt)
-            room_id = f"room_{i}"
-            bbox = {
-                "x1": round((x / w_img) * 100, 2),
-                "y1": round((y / h_img) * 100, 2),
-                "x2": round(((x + w) / w_img) * 100, 2),
-                "y2": round(((y + h) / h_img) * 100, 2)
-            }
-            result["rooms"].append({
-                "id": room_id,
-                "name": "Определяется ИИ...",
-                "bbox": bbox
-            })
-            result["shots"].extend(generate_safe_shots(bbox, room_id))
-
-    result["rooms"].sort(key=lambda r: r['bbox']['y1'])
+    result = process_full_photo(img, ai_json)
     return json.dumps(result), 200, {'Content-Type': 'application/json'}
 
 
