@@ -201,7 +201,7 @@ def convert_pdf():
 
 def hard_crop(image):
     # 1. Работаем с яркостью (L) в пространстве LAB, чтобы игнорировать цветовые шумы
-    lab = cv2.cvtColor(image, cv2.COLOR_BGR_LAB)
+    lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
     l_channel, a, b = cv2.split(lab)
 
     # 2. Сильно размываем, чтобы слить текст и стены в единое белое пятно листа
