@@ -199,60 +199,37 @@ def convert_pdf():
     return send_file(img_io, mimetype='image/png', download_name='plan.png')
 
 
-def hard_crop(image):
-    # 1. Работаем с яркостью (L) в пространстве LAB, чтобы игнорировать цветовые шумы
-    lab = cv2.cvtColor(image, cv2.COLOR_BGR2LAB)
-    l_channel, a, b = cv2.split(lab)
+def perspective_transform(image, corners_pct):
+    h_img, w_img = image.shape[:2]
 
-    # 2. Сильно размываем, чтобы слить текст и стены в единое белое пятно листа
-    blurred = cv2.GaussianBlur(l_channel, (15, 15), 0)
+    # Преобразуем проценты от ИИ в пиксели
+    pts1 = np.float32([
+        [c['x'] * w_img / 100, c['y'] * h_img / 100] for c in corners_pct
+    ])
 
-    # 3. Принудительный порог: всё, что ярче 150-180 (лист), станет белым, остальное (стол) - черным
-    # Мы используем метод TRIANGLE, он лучше Оцу работает, когда фона (стола) в кадре больше, чем объекта
-    _, thresh = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_TRIANGLE)
+    # Вычисляем размеры нового изображения
+    width = int(max(np.linalg.norm(pts1[0] - pts1[1]), np.linalg.norm(pts1[2] - pts1[3])))
+    height = int(max(np.linalg.norm(pts1[0] - pts1[3]), np.linalg.norm(pts1[1] - pts1[2])))
 
-    # 4. Убираем "дыры" внутри листа (черные буквы) морфологией
-    kernel = np.ones((20, 20), np.uint8)
-    mask = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel)
-    mask = cv2.dilate(mask, kernel, iterations=1)
+    pts2 = np.float32([[0, 0], [width, 0], [width, height], [0, height]])
 
-    # 5. Находим самый крупный контур
-    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    if not contours:
-        return image
-
-    max_cnt = max(contours, key=cv2.contourArea)
-
-    # 6. Вместо boundingRect используем minAreaRect, чтобы учесть поворот листа
-    rect = cv2.minAreaRect(max_cnt)
-    box = cv2.boxPoints(rect)
-    box = box.astype(np.intp)
-
-    # 7. Обрезаем по крайним точкам найденного контура
-    x, y, w, h = cv2.boundingRect(max_cnt)
-
-    # Защита: если область меньше 15% картинки - это ошибка, не режем
-    if w < image.shape[1] * 0.15 or h < image.shape[0] * 0.15:
-        return image
-
-    # Вырезаем с небольшим запасом 10 пикселей
-    pad = 10
-    crop = image[max(0, y - pad):min(image.shape[0], y + h + pad),
-                 max(0, x - pad):min(image.shape[1], x + w + pad)]
-    return crop
+    # Матрица трансформации
+    matrix = cv2.getPerspectiveTransform(pts1, pts2)
+    result = cv2.warpPerspective(image, matrix, (width, height))
+    return result
 
 
 @app.route('/crop-plan', methods=['POST'])
 def crop_plan():
     """
-    Finds the sheet boundary in the image (e.g. photo of a plan on a table) and returns a cropped image.
-    Uses LAB lightness + TRIANGLE threshold + morphology to isolate the document sheet.
-    Input:  multipart/form-data { image: <PNG/JPG binary> }
-    Output: JPEG binary (cropped)
+    Applies perspective transform to straighten a floor plan photo.
+    Input:  multipart/form-data { image: <binary>, corners: <JSON array of 4 {x, y} in percent> }
+    Output: JPEG binary (straightened)
     """
     if 'image' not in request.files:
         return {'error': 'No image provided'}, 400
+    if 'corners' not in request.form:
+        return {'error': 'No corners provided'}, 400
 
     img_bytes = request.files['image'].read()
     nparr = np.frombuffer(img_bytes, np.uint8)
@@ -261,7 +238,8 @@ def crop_plan():
     if img_cv is None:
         return {'error': 'Failed to decode image'}, 400
 
-    final_img = hard_crop(img_cv)
+    corners = json.loads(request.form['corners'])
+    final_img = perspective_transform(img_cv, corners)
 
     _, buf = cv2.imencode('.jpg', final_img, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
     img_io = io.BytesIO(buf.tobytes())
