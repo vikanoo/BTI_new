@@ -400,18 +400,14 @@ def process_full_photo(img, ai_json):
 
 def get_font(size):
     """Ищем доступный кириллический шрифт на сервере"""
-    paths = [
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/truetype/freefont/FreeSans.ttf",
-        "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
-    ]
-    for path in paths:
-        if os.path.exists(path):
-            return ImageFont.truetype(path, size)
+    path = "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
+    if os.path.exists(path):
+        return ImageFont.truetype(path, size)
     return ImageFont.load_default()
 
 
 def draw_text_pil(img, text, position, color=(255, 0, 0), font_size=20):
+    """Отрисовка текста через Pillow"""
     img_pil = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
     draw = ImageDraw.Draw(img_pil)
     font = get_font(font_size)
@@ -422,12 +418,12 @@ def draw_text_pil(img, text, position, color=(255, 0, 0), font_size=20):
 @app.route('/process-shots', methods=['POST'])
 def process_shots():
     """
-    Draws room bounding boxes and shot points on the image using PIL for Cyrillic support.
+    Draws shot points (only) on the image using PIL for Cyrillic support.
     Input:  multipart/form-data { image: <binary> } + query param ai_data=<JSON {rooms, shots}>
-    Output: JPEG with annotated rooms and shot positions
+    Output: JPEG with annotated shot positions
     """
     try:
-        # 1. Данные из URL
+        # 1. Получаем JSON и картинку
         ai_data_raw = request.args.get('ai_data')
         if not ai_data_raw:
             return json.dumps({"error": "No ai_data in URL"}), 400, {'Content-Type': 'application/json'}
@@ -435,7 +431,6 @@ def process_shots():
         if isinstance(data, list):
             data = data[0]
 
-        # 2. Картинка из body
         file = request.files.get('image')
         if not file:
             return json.dumps({"error": "No image in body"}), 400, {'Content-Type': 'application/json'}
@@ -445,29 +440,17 @@ def process_shots():
             return json.dumps({"error": "Failed to decode image"}), 400, {'Content-Type': 'application/json'}
         h, w = img.shape[:2]
 
-        # 3. Рисуем комнаты (синие рамки)
-        for room in data.get('rooms', []):
-            b = room.get('bbox', {})
-            x1, y1 = int(b['x1'] * w / 100), int(b['y1'] * h / 100)
-            x2, y2 = int(b['x2'] * w / 100), int(b['y2'] * h / 100)
-
-            cv2.rectangle(img, (x1, y1), (x2, y2), (255, 0, 0), 2)
-
-            name = room.get('name', '')
-            if "Определяется" in name:
-                name = room.get('id', '')
-            img = draw_text_pil(img, name, (x1 + 5, y1 + 5), color=(255, 0, 0), font_size=24)
-
-        # 4. Рисуем точки (красные круги)
+        # 2. Только точки съемки (без рамок комнат)
         for shot in data.get('shots', []):
             sx, sy = int(shot['x'] * w / 100), int(shot['y'] * h / 100)
+
             cv2.circle(img, (sx, sy), 8, (0, 0, 255), -1)
             cv2.circle(img, (sx, sy), 8, (255, 255, 255), 2)
 
             label = shot.get('pos', '')
-            img = draw_text_pil(img, label, (sx + 10, sy - 15), color=(0, 0, 0), font_size=16)
+            img = draw_text_pil(img, label, (sx + 10, sy - 15), color=(255, 0, 0), font_size=18)
 
-        # 5. Вывод
+        # 3. Вывод обработанной картинки
         _, buffer = cv2.imencode('.jpg', img)
         return send_file(io.BytesIO(buffer), mimetype='image/jpeg')
 
