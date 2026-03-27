@@ -227,7 +227,7 @@ def hard_crop(image):
     # 6. Вместо boundingRect используем minAreaRect, чтобы учесть поворот листа
     rect = cv2.minAreaRect(max_cnt)
     box = cv2.boxPoints(rect)
-    box = np.int0(box)
+    box = box.astype(np.intp)
 
     # 7. Обрезаем по крайним точкам найденного контура
     x, y, w, h = cv2.boundingRect(max_cnt)
