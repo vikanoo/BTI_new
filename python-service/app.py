@@ -1,4 +1,4 @@
-from flask import Flask, request, send_file
+from flask import Flask, request, send_file, jsonify
 from pdf2image import convert_from_bytes
 from PIL import Image, ImageDraw, ImageFont
 import os
@@ -480,69 +480,46 @@ def process_shots():
         return json.dumps({"error": str(e)}), 500, {'Content-Type': 'application/json'}
 
 
-def process_and_draw(img, ai_data):
+def process_plan(img, data):
     h_img, w_img = img.shape[:2]
+    shots = data.get('shots', [])
+    detected_rooms = data.get('detected_rooms', [])
 
-    # 1. Поиск листа БТИ (белая область)
-    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
-    _, thresh_paper = cv2.threshold(blurred, 150, 255, cv2.THRESH_BINARY)
-    contours_paper, _ = cv2.findContours(thresh_paper, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    if contours_paper:
-        paper_cnt = max(contours_paper, key=cv2.contourArea)
-        px, py, pw, ph = cv2.boundingRect(paper_cnt)
-    else:
-        px, py, pw, ph = 0, 0, w_img, h_img
-
-    # 2. Поиск геометрии комнат
-    roi = gray[py:py + ph, px:px + pw]
-    thresh_rooms = cv2.adaptiveThreshold(roi, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                         cv2.THRESH_BINARY_INV, 11, 2)
-    kernel = np.ones((3, 3), np.uint8)
-    dilated = cv2.dilate(thresh_rooms, kernel, iterations=1)
-    contours_rooms, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-
-    geo_rooms = []
-    for cnt in contours_rooms:
-        if cv2.contourArea(cnt) > (pw * ph * 0.005):  # Минимум 0.5% площади
-            rx, ry, rw, rh = cv2.boundingRect(cnt)
-            geo_rooms.append({
-                'x_center': ((px + rx + rw / 2) / w_img) * 100,
-                'y_center': ((py + ry + rh / 2) / h_img) * 100,
-                'bbox': [px + rx, py + ry, px + rx + rw, py + ry + rh]
-            })
-
-    # 3. Отрисовка через Pillow
     pil_img = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB)).convert('RGBA')
     overlay = Image.new('RGBA', pil_img.size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
-    f_num = get_font(24)
-    f_txt = get_font(18)
 
-    BLUE_FILL  = (0, 0, 255, 140)
+    font_num = get_font(24)
+    font_txt = get_font(18)
+
+    BLUE_FILL  = (0, 0, 255, 130)
     BLUE_SOLID = (0, 0, 255, 255)
     WHITE      = (255, 255, 255, 255)
 
-    # 4. Расстановка точек по списку задач
-    tasks = ai_data if isinstance(ai_data, list) else ai_data.get('shots', [])
+    for i, shot in enumerate(shots, start=1):
+        # Берем координаты из shot или из detected_rooms по индексу
+        if 'x' in shot and 'y' in shot:
+            sx, sy = int(shot['x'] * w_img / 100), int(shot['y'] * h_img / 100)
+        elif i - 1 < len(detected_rooms):
+            room = detected_rooms[i - 1]
+            bbox = room['bbox']
 
-    for i, task in enumerate(tasks, start=1):
-        if 'x' in task and 'y' in task:
-            sx, sy = int(task['x'] * w_img / 100), int(task['y'] * h_img / 100)
-        elif i - 1 < len(geo_rooms):
-            room = geo_rooms[i - 1]
-            sx = int(room['x_center'] * w_img / 100)
-            sy = int(room['y_center'] * h_img / 100)
+            if shot.get('position') == "в центре":
+                sx = int((bbox['x1'] + bbox['x2']) / 2 * w_img / 100)
+                sy = int((bbox['y1'] + bbox['y2']) / 2 * h_img / 100)
+            else:
+                # "В углу" или "у стены" — с отступом 20%
+                sx = int((bbox['x1'] + (bbox['x2'] - bbox['x1']) * 0.2) * w_img / 100)
+                sy = int((bbox['y1'] + (bbox['y2'] - bbox['y1']) * 0.2) * h_img / 100)
         else:
-            continue  # Комнат меньше, чем задач
+            continue
 
         r = 25
         draw.ellipse([sx - r, sy - r, sx + r, sy + r], fill=BLUE_FILL, outline=WHITE, width=2)
-        draw.text((sx - 8, sy - 15), str(i), font=f_num, fill=WHITE)
+        draw.text((sx - 8, sy - 15), str(i), font=font_num, fill=WHITE)
 
-        label = f"{task.get('room_name', '')} {task.get('position', '')}".strip()
-        draw.text((sx + r + 10, sy - 10), label, font=f_txt, fill=BLUE_SOLID)
+        label = f"{shot.get('room_name', '')} {shot.get('position', '')}".strip()
+        draw.text((sx + r + 10, sy - 10), label, font=font_txt, fill=BLUE_SOLID)
 
     return Image.alpha_composite(pil_img, overlay).convert('RGB')
 
@@ -550,34 +527,34 @@ def process_and_draw(img, ai_data):
 @app.route('/process', methods=['POST'])
 def handle():
     """
-    Detects rooms, draws numbered shot points with labels on the image.
-    Input:  multipart/form-data { image: <binary> } + query param ai_data=<JSON>
+    Draws numbered shot points on the image using shots + detected_rooms from ai_data.
+    Input:  multipart/form-data { image: <binary> } + query param ai_data=<JSON {shots, detected_rooms}>
     Output: JPEG with annotated shot positions
     """
     try:
         ai_data_raw = request.args.get('ai_data')
         if not ai_data_raw:
-            return json.dumps({"error": "No ai_data in URL"}), 400, {'Content-Type': 'application/json'}
+            return jsonify({"error": "No ai_data"}), 400
 
-        ai_json = json.loads(ai_data_raw)
+        data = json.loads(ai_data_raw)
 
         file = request.files.get('image')
         if not file:
-            return json.dumps({"error": "No image in body"}), 400, {'Content-Type': 'application/json'}
+            return jsonify({"error": "No image"}), 400
 
         img = cv2.imdecode(np.frombuffer(file.read(), np.uint8), cv2.IMREAD_COLOR)
         if img is None:
-            return json.dumps({"error": "Failed to decode image"}), 400, {'Content-Type': 'application/json'}
+            return jsonify({"error": "Failed to decode image"}), 400
 
-        final_pil = process_and_draw(img, ai_json)
+        result_img = process_plan(img, data)
 
         buf = io.BytesIO()
-        final_pil.save(buf, 'JPEG', quality=95)
+        result_img.save(buf, 'JPEG', quality=95)
         buf.seek(0)
         return send_file(buf, mimetype='image/jpeg')
 
     except Exception as e:
-        return json.dumps({"error": str(e)}), 500, {'Content-Type': 'application/json'}
+        return jsonify({"error": str(e)}), 500
 
 
 @app.route('/detect-rooms-with-shots', methods=['POST'])
