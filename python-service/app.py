@@ -406,19 +406,18 @@ def get_font(size):
     return ImageFont.load_default()
 
 
-def draw_text_pil(img, text, position, color=(255, 0, 0), font_size=20):
-    """Отрисовка текста через Pillow"""
-    img_pil = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB))
+def draw_text_pil(img_pil, text, position, color=(255, 0, 0), font_size=20):
+    """Отрисовка текста через Pillow на PIL изображении"""
     draw = ImageDraw.Draw(img_pil)
     font = get_font(font_size)
     draw.text(position, text, font=font, fill=color)
-    return cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
+    return img_pil
 
 
 @app.route('/process-shots', methods=['POST'])
 def process_shots():
     """
-    Draws shot points (only) on the image using PIL for Cyrillic support.
+    Draws semi-transparent shot points with numbered labels on the image.
     Input:  multipart/form-data { image: <binary> } + query param ai_data=<JSON {rooms, shots}>
     Output: JPEG with annotated shot positions
     """
@@ -440,18 +439,41 @@ def process_shots():
             return json.dumps({"error": "Failed to decode image"}), 400, {'Content-Type': 'application/json'}
         h, w = img.shape[:2]
 
-        # 2. Только точки съемки (без рамок комнат)
-        for shot in data.get('shots', []):
+        # Конвертируем OpenCV (BGR) в PIL (RGB) для работы с прозрачностью
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        pil_img = Image.fromarray(img_rgb)
+
+        # Создаем прозрачный слой для точек
+        overlay = Image.new('RGBA', pil_img.size, (255, 255, 255, 0))
+        draw_overlay = ImageDraw.Draw(overlay)
+
+        blue_color_trans = (0, 0, 255, 128)   # 50% прозрачности
+        blue_color_text  = (0, 0, 255, 255)   # Непрозрачный синий для текста
+
+        # 2. Отрисовка точек и текста
+        for index, shot in enumerate(data.get('shots', []), start=1):
             sx, sy = int(shot['x'] * w / 100), int(shot['y'] * h / 100)
 
-            cv2.circle(img, (sx, sy), 8, (0, 0, 255), -1)
-            cv2.circle(img, (sx, sy), 8, (255, 255, 255), 2)
+            # Полупрозрачный синий круг на оверлее
+            radius = 20
+            draw_overlay.ellipse(
+                [sx - radius, sy - radius, sx + radius, sy + radius],
+                fill=blue_color_trans
+            )
 
+            # Белая цифра (порядок фото) внутри круга
+            draw_text_pil(pil_img, str(index), (sx - 7, sy - 12), color=(255, 255, 255, 255), font_size=20)
+
+            # Синяя надпись позиции рядом с точкой
             label = shot.get('pos', '')
-            img = draw_text_pil(img, label, (sx + 10, sy - 15), color=(255, 0, 0), font_size=18)
+            draw_text_pil(pil_img, label, (sx + radius + 5, sy - 10), color=blue_color_text, font_size=18)
 
-        # 3. Вывод обработанной картинки
-        _, buffer = cv2.imencode('.jpg', img)
+        # Комбинируем оригинальное изображение с прозрачным оверлеем
+        final_img_pil = Image.alpha_composite(pil_img.convert('RGBA'), overlay)
+
+        # 3. Конвертируем обратно в OpenCV и выводим
+        final_img_cv2 = cv2.cvtColor(np.array(final_img_pil), cv2.COLOR_RGBA2BGR)
+        _, buffer = cv2.imencode('.jpg', final_img_cv2, [int(cv2.IMWRITE_JPEG_QUALITY), 90])
         return send_file(io.BytesIO(buffer), mimetype='image/jpeg')
 
     except Exception as e:
