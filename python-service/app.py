@@ -274,46 +274,51 @@ def crop_plan():
 def find_rooms_geometric(image_bytes):
     nparr = np.frombuffer(image_bytes, np.uint8)
     img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+    if img is None:
+        return []
     h_img, w_img = img.shape[:2]
 
-    # 1. Переводим в ЧБ и инвертируем
+    # 1. Улучшаем контраст (CLAHE) — вытягивает бледные линии на фото
     gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-    # Адаптивный порог поможет выделить стены даже при плохом свете
+    clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+    gray = clahe.apply(gray)
+
+    # 2. Бинаризация с уменьшенным окном (11 вместо 21) — ловит тонкие линии
     thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-                                   cv2.THRESH_BINARY_INV, 21, 10)
+                                   cv2.THRESH_BINARY_INV, 11, 2)
 
-    # 2. Убираем шум (текст и размерные линии)
-    kernel = np.ones((5, 5), np.uint8)
-    opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel)
-    # "Сшиваем" стены, если в них были дыры (двери)
-    closing_kernel = np.ones((10, 10), np.uint8)
-    closed = cv2.morphologyEx(opening, cv2.MORPH_CLOSE, closing_kernel)
+    # 3. Убираем мелкий шум, но сохраняем стены
+    kernel = np.ones((3, 3), np.uint8)
+    opening = cv2.morphologyEx(thresh, cv2.MORPH_OPEN, kernel, iterations=1)
 
-    # 3. Поиск внешних контуров (только комнаты)
-    contours, _ = cv2.findContours(closed, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # 4. Склеиваем стены (Dilation) — замыкает прерывистые линии на фото
+    dilate_kernel = np.ones((5, 5), np.uint8)
+    dilated = cv2.dilate(opening, dilate_kernel, iterations=2)
+
+    # 5. Поиск контуров
+    contours, _ = cv2.findContours(dilated, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
 
     detected_rooms = []
-
     for i, cnt in enumerate(contours):
         area = cv2.contourArea(cnt)
-        # Фильтр площади: игнорируем объекты меньше 2% от всего плана (мусор)
-        if area > (h_img * w_img * 0.02):
+
+        # Порог 0.5% — ловит маленькие санузлы
+        if area > (h_img * w_img * 0.005):
             x, y, w, h = cv2.boundingRect(cnt)
 
-            # Переводим пиксели в проценты
-            x1_pct = round((x / w_img) * 100, 1)
-            y1_pct = round((y / h_img) * 100, 1)
-            x2_pct = round(((x + w) / w_img) * 100, 1)
-            y2_pct = round(((y + h) / h_img) * 100, 1)
-
             detected_rooms.append({
-                "internal_id": f"geo_room_{i}",
-                "bbox": {"x1": x1_pct, "y1": y1_pct, "x2": x2_pct, "y2": y2_pct},
-                "area_px": area
+                "internal_id": f"room_{i}",
+                "bbox": {
+                    "x1": round((x / w_img) * 100, 1),
+                    "y1": round((y / h_img) * 100, 1),
+                    "x2": round(((x + w) / w_img) * 100, 1),
+                    "y2": round(((y + h) / h_img) * 100, 1)
+                },
+                "area_pct": round((area / (h_img * w_img)) * 100, 2)
             })
 
-    # Сортируем комнаты слева направо, сверху вниз
-    detected_rooms.sort(key=lambda r: (r['bbox']['y1'], r['bbox']['x1']))
+    # Сортировка (сверху вниз)
+    detected_rooms.sort(key=lambda r: r['bbox']['y1'])
     return detected_rooms
 
 
