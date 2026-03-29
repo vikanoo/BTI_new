@@ -742,5 +742,210 @@ def annotate_changes():
     return send_file(img_io, mimetype='image/png', download_name='annotated_changes.png')
 
 
+# =========================
+# ЗАГРУЗКА ИЗОБРАЖЕНИЯ
+# =========================
+def load_image(url):
+    import requests as req
+    headers = {"User-Agent": "Mozilla/5.0"}
+    resp = req.get(url, headers=headers)
+
+    if resp.status_code != 200:
+        raise Exception("Ошибка загрузки изображения")
+
+    img_array = np.asarray(bytearray(resp.content), dtype=np.uint8)
+    img = cv2.imdecode(img_array, cv2.IMREAD_COLOR)
+
+    if img is None:
+        raise Exception("Ошибка декодирования изображения")
+
+    return img
+
+
+# =========================
+# PREPROCESS
+# =========================
+def _preprocess(img):
+    gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+    gray = cv2.equalizeHist(gray)
+    blur = cv2.GaussianBlur(gray, (5, 5), 0)
+
+    edges = cv2.Canny(blur, 40, 120)
+
+    kernel = np.ones((3, 3), np.uint8)
+    edges = cv2.morphologyEx(edges, cv2.MORPH_OPEN, kernel)
+
+    return edges
+
+
+# =========================
+# СТЕНЫ (УЛУЧШЕНО)
+# =========================
+def _build_walls(edges):
+    kernel = np.ones((7, 7), np.uint8)
+    dilated = cv2.dilate(edges, kernel, iterations=4)
+    closed = cv2.morphologyEx(dilated, cv2.MORPH_CLOSE, kernel, iterations=3)
+    return closed
+
+
+# =========================
+# WATERSHED
+# =========================
+def _segment_rooms(walls):
+    inv = cv2.bitwise_not(walls)
+    h, w = inv.shape
+    mask = np.zeros((h + 2, w + 2), np.uint8)
+    flood = inv.copy()
+    cv2.floodFill(flood, mask, (0, 0), 0)
+
+    dist = cv2.distanceTransform(flood, cv2.DIST_L2, 5)
+    cv2.normalize(dist, dist, 0, 1.0, cv2.NORM_MINMAX)
+
+    _, sure_fg = cv2.threshold(dist, 0.18, 1.0, cv2.THRESH_BINARY)
+    sure_fg = np.uint8(sure_fg * 255)
+
+    sure_bg = cv2.dilate(flood, np.ones((3, 3), np.uint8), iterations=2)
+    unknown = cv2.subtract(sure_bg, sure_fg)
+
+    _, markers = cv2.connectedComponents(sure_fg)
+    markers = markers + 1
+    markers[unknown == 255] = 0
+
+    color = cv2.cvtColor(walls, cv2.COLOR_GRAY2BGR)
+    markers = cv2.watershed(color, markers)
+    return markers
+
+
+# =========================
+# ИЗВЛЕЧЕНИЕ КОМНАТ
+# =========================
+def _extract_rooms(markers, img):
+    h, w = img.shape[:2]
+    rooms = []
+
+    for label in np.unique(markers):
+        if label <= 1:
+            continue
+
+        mask = np.uint8(markers == label)
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+
+        for cnt in contours:
+            area = cv2.contourArea(cnt)
+
+            if area > (w * h) * 0.5:
+                continue
+            if area < (w * h) * 0.003:
+                continue
+
+            epsilon = 0.01 * cv2.arcLength(cnt, True)
+            approx = cv2.approxPolyDP(cnt, epsilon, True)
+
+            M = cv2.moments(cnt)
+            if M["m00"] == 0:
+                continue
+
+            cx = M["m10"] / M["m00"]
+            cy = M["m01"] / M["m00"]
+
+            polygon = [
+                {"x": float(p[0][0] / w), "y": float(p[0][1] / h)}
+                for p in approx
+            ]
+
+            rooms.append({
+                "id": f"room_{len(rooms)+1}",
+                "polygon": polygon,
+                "center": {"x": float(cx / w), "y": float(cy / h)},
+                "area_pct": float(area / (w * h) * 100)
+            })
+
+    return rooms
+
+
+# =========================
+# FALLBACK (если плохо нашло)
+# =========================
+def _fallback_segmentation(edges, img):
+    h, w = img.shape[:2]
+    contours, _ = cv2.findContours(edges, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    rooms = []
+
+    for cnt in contours:
+        area = cv2.contourArea(cnt)
+        if area < (w * h) * 0.01:
+            continue
+
+        x, y, cw, ch = cv2.boundingRect(cnt)
+        rooms.append({
+            "id": f"room_{len(rooms)+1}",
+            "bbox": {
+                "x1": x / w,
+                "y1": y / h,
+                "x2": (x + cw) / w,
+                "y2": (y + ch) / h
+            }
+        })
+
+    return rooms
+
+
+# =========================
+# DEBUG
+# =========================
+def _debug_draw(img, rooms):
+    debug = img.copy()
+    h, w = img.shape[:2]
+
+    for r in rooms:
+        pts = np.array([
+            [int(p["x"] * w), int(p["y"] * h)]
+            for p in r.get("polygon", [])
+        ], np.int32)
+
+        if len(pts) > 0:
+            cv2.polylines(debug, [pts], True, (0, 255, 0), 2)
+
+        if "center" in r:
+            cx = int(r["center"]["x"] * w)
+            cy = int(r["center"]["y"] * h)
+            cv2.circle(debug, (cx, cy), 5, (0, 0, 255), -1)
+
+    cv2.imwrite("debug.png", debug)
+
+
+# =========================
+# /detect-rooms
+# =========================
+@app.route('/detect-rooms', methods=['POST'])
+def detect_rooms():
+    data = request.get_json()
+
+    if not data:
+        return jsonify({"error": "No JSON received"}), 400
+
+    url = data.get("planUrl")
+    if not url:
+        return jsonify({"error": "No image provided"}), 400
+
+    try:
+        img = load_image(url)
+
+        edges = _preprocess(img)
+        walls = _build_walls(edges)
+        markers = _segment_rooms(walls)
+        rooms = _extract_rooms(markers, img)
+
+        if len(rooms) < 2:
+            rooms = _fallback_segmentation(edges, img)
+
+        _debug_draw(img, rooms)
+
+        return jsonify({"rooms": rooms, "count": len(rooms)})
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
