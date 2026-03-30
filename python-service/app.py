@@ -1301,5 +1301,14 @@ def analyze_bti_plan(image_data, save_annotated=True, output_dir="/tmp"):
             os.remove(temp_file)
 
 
+@app.route('/analyze-bti', methods=['POST'])
+def handle_analyze_bti():
+    if 'image' not in request.files:
+        return jsonify({"error": "No image provided"}), 400
+    image_bytes = request.files['image'].read()
+    result = analyze_bti_plan(image_bytes, save_annotated=False)
+    return jsonify(result)
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
