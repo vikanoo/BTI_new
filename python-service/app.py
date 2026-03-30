@@ -915,10 +915,10 @@ def _debug_draw(img, rooms):
 
 
 # =========================
-# /detect-rooms
+# /detect-rooms-url
 # =========================
-@app.route('/detect-rooms', methods=['POST'])
-def detect_rooms():
+@app.route('/detect-rooms-url', methods=['POST'])
+def detect_rooms_url():
     data = request.get_json()
 
     if not data:
