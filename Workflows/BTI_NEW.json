@@ -238,7 +238,7 @@
     {
       "parameters": {
         "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
-        "text": "У Вас нет доступа к этому боту, пожалуйста, обратитесь к администратору",
+        "text": "={{ '❌ У вас нет доступа к этому боту.\\n\\nВаш Telegram ID: ' + $('Telegram Trigger').item.json.message.chat.id + '\\n\\nДля получения доступа отправьте ваш ID администратору.' }}",
         "additionalFields": {
           "appendAttribution": false
         }
@@ -252,6 +252,29 @@
       "id": "0e4141d4-7f51-4e8f-81c2-47bd2ba51896",
       "name": "Send a text message1",
       "webhookId": "399780a9-03cd-41a0-b84b-264b77e769a7",
+      "credentials": {
+        "telegramApi": {
+          "id": "pf7Lmwh5V28tUCpr",
+          "name": "BTI_BOT"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "chatId": "1106349687",
+        "text": "={{ '🔔 Запрос на доступ к боту\\n\\nПользователь: ' + ($('Telegram Trigger').item.json.message.from.first_name || '') + ' ' + ($('Telegram Trigger').item.json.message.from.last_name || '') + '\\nUsername: @' + ($('Telegram Trigger').item.json.message.from.username || 'нет') + '\\nTelegram ID: ' + $('Telegram Trigger').item.json.message.chat.id }}",
+        "additionalFields": {
+          "appendAttribution": false
+        }
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        -256,
+        352
+      ],
+      "id": "a1b2c3d4-e5f6-7890-abcd-access-notify",
+      "name": "Telegram - Notify Admin Access Request",
       "credentials": {
         "telegramApi": {
           "id": "pf7Lmwh5V28tUCpr",
@@ -2899,6 +2922,22 @@
         ]
       ]
     },
+    "Telegram - Notify Admin Access Request": {
+      "main": [
+        []
+      ]
+    },
+    "Send a text message1": {
+      "main": [
+        [
+          {
+            "node": "Telegram - Notify Admin Access Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "If": {
       "main": [
         [
@@ -4174,7 +4213,7 @@
       {
         "parameters": {
           "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
-          "text": "У Вас нет доступа к этому боту, пожалуйста, обратитесь к администратору",
+          "text": "={{ '❌ У вас нет доступа к этому боту.\\n\\nВаш Telegram ID: ' + $('Telegram Trigger').item.json.message.chat.id + '\\n\\nДля получения доступа отправьте ваш ID администратору.' }}",
           "additionalFields": {
             "appendAttribution": false
           }
