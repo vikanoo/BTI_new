@@ -7,6 +7,7 @@ import json
 import math
 import cv2
 import numpy as np
+import uuid
 
 app = Flask(__name__)
 
@@ -1086,6 +1087,218 @@ def handle_draw_shots():
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+class BTIPlanAnalyzer:
+    """Анализатор планов БТИ для расстановки точек съёмки"""
+
+    def __init__(self, image_path):
+        self.image_path = image_path
+        self.original = cv2.imread(image_path)
+        if self.original is None:
+            raise ValueError("Не удалось загрузить изображение")
+        self.height, self.width = self.original.shape[:2]
+        self.min_room_area = int(self.width * self.height * 0.001)
+
+    def analyze(self, output_image_path=None):
+        binary = self._preprocess()
+        rooms = self._find_rooms(binary)
+        rooms_with_points = []
+        for room in rooms:
+            room['shooting_points'] = self._generate_shooting_points(room)
+            rooms_with_points.append(room)
+        result = self._build_result(rooms_with_points)
+        if output_image_path:
+            self._draw_annotations(rooms_with_points, output_image_path)
+            result['annotated_image_path'] = output_image_path
+        return result
+
+    def _preprocess(self):
+        gray = cv2.cvtColor(self.original, cv2.COLOR_BGR2GRAY)
+        gray = cv2.equalizeHist(gray)
+        binary = cv2.adaptiveThreshold(
+            gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY_INV, 11, 2
+        )
+        kernel = np.ones((3, 3), np.uint8)
+        cleaned = cv2.morphologyEx(binary, cv2.MORPH_CLOSE, kernel)
+        cleaned = cv2.morphologyEx(cleaned, cv2.MORPH_OPEN, kernel)
+        return cleaned
+
+    def _find_rooms(self, binary):
+        contours, _ = cv2.findContours(binary, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        rooms = []
+        for contour in contours:
+            area = cv2.contourArea(contour)
+            if area < self.min_room_area:
+                continue
+            x, y, w, h = cv2.boundingRect(contour)
+            if w > self.width * 0.9 and h > self.height * 0.9:
+                continue
+            M = cv2.moments(contour)
+            if M["m00"] != 0:
+                cx = int(M["m10"] / M["m00"])
+                cy = int(M["m01"] / M["m00"])
+            else:
+                cx, cy = x + w // 2, y + h // 2
+            room_type = self._detect_room_type(x, y, w, h)
+            area_m2 = round(area / 1000, 1)
+            rooms.append({
+                'id': f"room_{len(rooms)+1}",
+                'name': self._get_room_name(room_type, area_m2),
+                'type': room_type,
+                'bbox': (x, y, w, h),
+                'center': (cx, cy),
+                'area_pixels': int(area),
+                'area_estimate_m2': area_m2
+            })
+        rooms.sort(key=lambda r: r['area_pixels'], reverse=True)
+        return rooms
+
+    def _detect_room_type(self, x, y, w, h):
+        roi = self.original[y:y+h, x:x+w]
+        if roi.size == 0:
+            return "unknown"
+        hsv = cv2.cvtColor(roi, cv2.COLOR_BGR2HSV)
+        blue_mask = cv2.inRange(hsv, np.array([90, 50, 50]), np.array([130, 255, 255]))
+        blue_ratio = np.sum(blue_mask > 0) / roi.size
+        gray_mask = cv2.inRange(hsv, np.array([0, 0, 100]), np.array([180, 50, 255]))
+        gray_ratio = np.sum(gray_mask > 0) / roi.size
+        aspect_ratio = w / h
+        is_narrow = aspect_ratio < 0.4 or aspect_ratio > 2.5
+        if blue_ratio > 0.05:
+            return "bathroom"
+        elif gray_ratio > 0.08:
+            return "kitchen"
+        elif is_narrow and w * h < 50000:
+            return "corridor"
+        elif w * h < 25000:
+            return "storage"
+        return "room"
+
+    def _get_room_name(self, room_type, area_m2):
+        names = {
+            'room': f"Жилая комната {area_m2} м²",
+            'kitchen': f"Кухня {area_m2} м²",
+            'bathroom': f"Санузел {area_m2} м²",
+            'corridor': f"Коридор {area_m2} м²",
+            'storage': f"Кладовая {area_m2} м²",
+            'unknown': f"Помещение {area_m2} м²"
+        }
+        return names.get(room_type, f"Помещение {area_m2} м²")
+
+    def _generate_shooting_points(self, room):
+        x, y, w, h = room['bbox']
+        points = [
+            {
+                'position': (x + w // 2, y + h - 20),
+                'direction': 'на дальнюю стену и противоположный угол',
+                'instruction': 'Захватить всё помещение с порога, показать глубину'
+            },
+            {
+                'position': (x + w - 20, y + 20),
+                'direction': 'на вход и центр помещения',
+                'instruction': 'Снять помещение из дальнего угла, показать обратную перспективу'
+            }
+        ]
+        if w * h > 50000:
+            points.append({
+                'position': (x + 20, y + h - 20),
+                'direction': 'на центр комнаты',
+                'instruction': 'Захватить угол комнаты и основное пространство'
+            })
+        return points[:3]
+
+    def _build_result(self, rooms_with_points):
+        result = {'rooms': [], 'shots': [], 'total_rooms': len(rooms_with_points), 'total_shots': 0}
+        shot_counter = 1
+        for room in rooms_with_points:
+            result['rooms'].append({
+                'id': room['id'],
+                'name': room['name'],
+                'type': room['type'],
+                'area_estimate_m2': room['area_estimate_m2'],
+                'center': {'x': room['center'][0], 'y': room['center'][1]}
+            })
+            for point in room['shooting_points']:
+                result['shots'].append({
+                    'shot_id': f"shot_{shot_counter}",
+                    'room_id': room['id'],
+                    'room_name': room['name'],
+                    'position': {'x': point['position'][0], 'y': point['position'][1]},
+                    'direction': point['direction'],
+                    'instruction': point['instruction']
+                })
+                shot_counter += 1
+        result['total_shots'] = shot_counter - 1
+        return result
+
+    def _draw_annotations(self, rooms_with_points, output_path):
+        img_pil = Image.fromarray(cv2.cvtColor(self.original, cv2.COLOR_BGR2RGB))
+        draw = ImageDraw.Draw(img_pil)
+        try:
+            font = ImageFont.truetype("arial.ttf", 16)
+            font_small = ImageFont.truetype("arial.ttf", 12)
+        except Exception:
+            font = font_small = ImageFont.load_default()
+        colors = {
+            'room': (255, 0, 0),
+            'kitchen': (0, 255, 0),
+            'bathroom': (128, 0, 128),
+            'corridor': (0, 0, 255),
+            'storage': (255, 165, 0),
+            'unknown': (128, 128, 128)
+        }
+        shot_counter = 1
+        for room in rooms_with_points:
+            color = colors.get(room['type'], (0, 0, 0))
+            x, y, w, h = room['bbox']
+            draw.rectangle([x, y, x+w, y+h], outline=color, width=2)
+            draw.text((x+5, y+5), room['name'], fill=color, font=font_small)
+            for point in room['shooting_points']:
+                px, py = point['position']
+                draw.ellipse([px-8, py-8, px+8, py+8], outline=color, fill=(255, 255, 255), width=2)
+                draw.text((px-4, py-6), str(shot_counter), fill=color, font=font)
+                shot_counter += 1
+        legend_x = self.width - 180
+        legend_y = 10
+        draw.text((legend_x, legend_y), "ЛЕГЕНДА:", fill=(0, 0, 0), font=font)
+        legend_y += 20
+        type_labels = {
+            'room': 'Жилые комнаты', 'kitchen': 'Кухни',
+            'bathroom': 'Санузлы', 'corridor': 'Коридоры', 'storage': 'Кладовки'
+        }
+        for type_name, label in type_labels.items():
+            draw.text((legend_x, legend_y), f"• {label}", fill=colors.get(type_name, (0, 0, 0)), font=font_small)
+            legend_y += 16
+        img_pil.save(output_path)
+
+
+def analyze_bti_plan(image_data, save_annotated=True, output_dir="/tmp"):
+    temp_file = None
+    input_path = None
+    request_id = str(uuid.uuid4())[:8]
+    try:
+        if isinstance(image_data, bytes):
+            input_path = os.path.join(output_dir, f"bti_{request_id}.jpg")
+            temp_file = input_path
+            with open(input_path, 'wb') as f:
+                f.write(image_data)
+        elif isinstance(image_data, str) and os.path.exists(image_data):
+            input_path = image_data
+        else:
+            raise ValueError("image_data должен быть bytes или путём к файлу")
+        analyzer = BTIPlanAnalyzer(input_path)
+        output_image = None
+        if save_annotated:
+            output_image = os.path.join(output_dir, f"bti_annotated_{request_id}.jpg")
+        result = analyzer.analyze(output_image_path=output_image)
+        if output_image:
+            result['annotated_image_path'] = output_image
+        return result
+    finally:
+        if temp_file and os.path.exists(temp_file):
+            os.remove(temp_file)
 
 
 if __name__ == '__main__':
