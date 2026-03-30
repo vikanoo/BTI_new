@@ -1305,183 +1305,145 @@ def analyze_bti_plan(image_data, save_annotated=True, output_dir="/tmp"):
             os.remove(temp_file)
 
 
-def draw_shots_on_plan(image_base64, shots_data, output_format='base64'):
+def process_bti_shots_request(input_data):
     try:
-        if isinstance(image_base64, str):
-            if ',' in image_base64:
-                image_base64 = image_base64.split(',')[1]
-            image_bytes = base64.b64decode(image_base64)
+        if isinstance(input_data, str):
+            data_list = json.loads(input_data)
         else:
-            image_bytes = image_base64
+            data_list = input_data
 
+        if not data_list or len(data_list) == 0:
+            return {'status': 'error', 'error': 'Empty data array'}
+
+        item = data_list[0]
+        chat_id = item.get('chatId')
+        rooms = item.get('rooms_json', [])
+        shots = item.get('shots_json', [])
+        image_base64 = item.get('data', '')
+
+        if not image_base64:
+            return {'status': 'error', 'error': 'No image data found'}
+        if not shots:
+            return {'status': 'error', 'error': 'No shots data found'}
+
+        if ',' in image_base64:
+            image_base64 = image_base64.split(',')[1]
+        image_bytes = base64.b64decode(image_base64)
         img_pil = Image.open(BytesIO(image_bytes))
         if img_pil.mode != 'RGB':
             img_pil = img_pil.convert('RGB')
         draw = ImageDraw.Draw(img_pil)
         width, height = img_pil.size
 
-        if isinstance(shots_data, str):
-            data = json.loads(shots_data)
-        else:
-            data = shots_data
-
-        rooms = data.get('rooms', [])
-        shots = data.get('shots', [])
-
-        if not rooms and not shots:
-            return {'status': 'error', 'error': 'JSON должен содержать поля "rooms" и/или "shots"'}
+        try:
+            font = ImageFont.truetype("arial.ttf", 16)
+            font_small = ImageFont.truetype("arial.ttf", 12)
+        except Exception:
+            font_paths = [
+                "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
+            ]
+            font = font_small = None
+            for fp in font_paths:
+                if os.path.exists(fp):
+                    try:
+                        font = ImageFont.truetype(fp, 16)
+                        font_small = ImageFont.truetype(fp, 12)
+                        break
+                    except Exception:
+                        continue
+            if font is None:
+                font = font_small = ImageFont.load_default()
 
         rooms_dict = {room.get('id'): room for room in rooms if room.get('id')}
-
-        font_paths = [
-            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-            "/System/Library/Fonts/Helvetica.ttc",
-            "C:\\Windows\\Fonts\\arial.ttf",
-            "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf"
-        ]
-        font = font_small = None
-        for font_path in font_paths:
-            if os.path.exists(font_path):
-                try:
-                    font = ImageFont.truetype(font_path, 16)
-                    font_small = ImageFont.truetype(font_path, 12)
-                    break
-                except Exception:
-                    continue
-        if font is None:
-            font = font_small = ImageFont.load_default()
-
         colors = {
             'identified': (34, 139, 34),
             'visual_only': (255, 140, 0),
             'default': (220, 20, 60)
         }
 
-        def parse_position_to_coords(position_text, room_id=None):
+        def parse_position(position_text, room_id=None):
             if not position_text:
                 return (width // 2, height // 2)
             text = position_text.lower()
-            room_bbox = None
-            if room_id and room_id in rooms_dict:
-                room = rooms_dict[room_id]
-                if 'bbox' in room:
-                    room_bbox = room['bbox']
-                elif all(k in room for k in ('x1', 'y1', 'x2', 'y2')):
-                    room_bbox = [room['x1'], room['y1'], room['x2'], room['y2']]
-            if not room_bbox:
-                margin = min(50, width // 10, height // 10)
-                room_bbox = [margin, margin, width - margin, height - margin]
-            x1, y1, x2, y2 = room_bbox
-            cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
-            if any(w in text for w in ['центр', 'center', 'середина']):
+            coord_match = re.search(r'\(?(\d+)[,\s]+(\d+)\)?', text)
+            if coord_match:
+                return (int(coord_match.group(1)), int(coord_match.group(2)))
+            cx, cy = width // 2, height // 2
+            if any(w in text for w in ['центр', 'center']):
                 return (cx, cy)
-            elif any(w in text for w in ['верхний левый', 'левый верхний', 'left top', 'top left']):
-                return (x1 + 30, y1 + 30)
-            elif any(w in text for w in ['верхний правый', 'правый верхний', 'right top', 'top right']):
-                return (x2 - 30, y1 + 30)
-            elif any(w in text for w in ['нижний левый', 'левый нижний', 'left bottom', 'bottom left']):
-                return (x1 + 30, y2 - 30)
-            elif any(w in text for w in ['нижний правый', 'правый нижний', 'right bottom', 'bottom right']):
-                return (x2 - 30, y2 - 30)
+            elif any(w in text for w in ['угол', 'corner']):
+                return (width - 50, 50)
+            elif any(w in text for w in ['вход', 'дверь', 'door']):
+                return (cx, height - 30)
             elif any(w in text for w in ['окно', 'window']):
-                return (x2 - 40, cy)
-            elif any(w in text for w in ['вход', 'дверь', 'door', 'entry']):
-                return (cx, y2 - 20)
-            elif any(w in text for w in ['дальний угол', 'far corner', 'угол', 'corner']):
-                return (x2 - 30, y1 + 30)
+                return (width - 50, cy)
+            elif any(w in text for w in ['плита', 'stove']):
+                return (width - 100, cy)
+            elif any(w in text for w in ['ванна', 'bath']):
+                return (width - 80, height - 100)
             return (cx, cy)
 
         for room in rooms:
             if 'bbox' in room and len(room['bbox']) == 4:
                 x1, y1, x2, y2 = room['bbox']
-            elif all(k in room for k in ('x1', 'y1', 'x2', 'y2')):
-                x1, y1, x2, y2 = room['x1'], room['y1'], room['x2'], room['y2']
-            else:
-                continue
-            color = colors.get(room.get('type', 'default'), colors['default'])
-            draw.rectangle([x1, y1, x2, y2], outline=color, width=2)
-            draw.text((x1 + 5, y1 + 5), room.get('name', room.get('id', 'Комната')), fill=color, font=font_small)
+                color = colors.get(room.get('type', 'default'), colors['default'])
+                draw.rectangle([x1, y1, x2, y2], outline=color, width=2)
+                draw.text((x1 + 5, y1 + 5), room.get('name', room.get('id', '')), fill=color, font=font_small)
 
         drawn_shots = []
-        for shot_counter, shot in enumerate(shots, 1):
-            shot_id = shot.get('shot_id', f'shot_{shot_counter}')
+        for i, shot in enumerate(shots, 1):
+            shot_id = shot.get('shot_id', f'shot_{i}')
             room_id = shot.get('room_id')
-            position_text = shot.get('position', 'центр')
-            coord_match = re.search(r'\(?(\d+)[,\s]+(\d+)\)?', position_text)
-            if coord_match:
-                x, y = int(coord_match.group(1)), int(coord_match.group(2))
-            else:
-                x, y = parse_position_to_coords(position_text, room_id)
-            x = max(10, min(x, width - 10))
-            y = max(10, min(y, height - 10))
+            x, y = parse_position(shot.get('position', 'центр'), room_id)
+            x = max(20, min(x, width - 20))
+            y = max(20, min(y, height - 20))
             color = colors.get(rooms_dict.get(room_id, {}).get('type', 'default'), colors['default'])
             radius = 12
             draw.ellipse([x - radius, y - radius, x + radius, y + radius], outline=color, fill=(255, 255, 255), width=3)
-            number_text = str(shot_counter)
-            try:
-                bbox = draw.textbbox((0, 0), number_text, font=font)
-                tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-            except Exception:
-                tw, th = len(number_text) * 8, 12
-            draw.text((x - tw // 2, y - th // 2), number_text, fill=color, font=font)
+            draw.text((x - 5, y - 7), str(i), fill=color, font=font)
             drawn_shots.append({
-                'shot_id': shot_id, 'draw_number': shot_counter,
+                'shot_id': shot_id, 'number': i,
                 'position': {'x': x, 'y': y}, 'room_id': room_id,
-                'room_name': shot.get('room_name', ''), 'direction': shot.get('direction', ''),
+                'room_name': shot.get('room_name', ''),
+                'direction': shot.get('direction', ''),
                 'instruction': shot.get('instruction', '')
             })
 
         legend_x, legend_y = width - 200, 10
         draw.text((legend_x, legend_y), "ЛЕГЕНДА:", fill=(0, 0, 0), font=font)
         legend_y += 22
-        for type_name, color, label in [
-            ('identified', (34, 139, 34), 'Identified (известные)'),
-            ('visual_only', (255, 140, 0), 'Visual only (визуально)')
+        for _, color, label in [
+            ('identified', (34, 139, 34), 'identified (известные)'),
+            ('visual_only', (255, 140, 0), 'visual_only (визуально)')
         ]:
             draw.ellipse([legend_x + 5, legend_y + 2, legend_x + 15, legend_y + 12], fill=color, outline=color)
             draw.text((legend_x + 20, legend_y), label, fill=(0, 0, 0), font=font_small)
             legend_y += 18
-        draw.text((legend_x, legend_y + 5), f"Всего точек: {len(drawn_shots)}", fill=(100, 100, 100), font=font_small)
+        draw.text((legend_x, legend_y), f"Всего точек: {len(drawn_shots)}", fill=(100, 100, 100), font=font_small)
 
-        if output_format == 'path':
-            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')[:-3]
-            output_path = f"annotated_plan_{timestamp}.png"
-            img_pil.save(output_path)
-            return {'status': 'success', 'annotated_image_path': output_path, 'shots_count': len(drawn_shots), 'drawn_shots': drawn_shots}
-        else:
-            output_buffer = BytesIO()
-            img_pil.save(output_buffer, format='PNG')
-            output_base64 = base64.b64encode(output_buffer.getvalue()).decode('utf-8')
-            return {'status': 'success', 'annotated_image_base64': output_base64, 'shots_count': len(drawn_shots), 'drawn_shots': drawn_shots, 'message': 'Точки успешно нанесены'}
+        output_buffer = BytesIO()
+        img_pil.save(output_buffer, format='PNG')
+        result_base64 = base64.b64encode(output_buffer.getvalue()).decode('utf-8')
+
+        return {
+            'status': 'success', 'chat_id': chat_id,
+            'annotated_image_base64': result_base64,
+            'shots_count': len(drawn_shots), 'drawn_shots': drawn_shots,
+            'message': f'Нанесено {len(drawn_shots)} точек съёмки'
+        }
 
     except Exception as e:
-        return {'status': 'error', 'error': str(e), 'message': f'Ошибка при обработке: {str(e)}'}
-
-
-def process_draw_shots_request(data):
-    try:
-        if isinstance(data, str):
-            data = json.loads(data)
-        image_base64 = data.get('image_base64')
-        shots_json = data.get('shots_json')
-        if not image_base64:
-            return {'status': 'error', 'error': 'Missing required field: image_base64'}
-        if not shots_json:
-            return {'status': 'error', 'error': 'Missing required field: shots_json'}
-        return draw_shots_on_plan(image_base64, shots_json, output_format='base64')
-    except json.JSONDecodeError as e:
-        return {'status': 'error', 'error': f'Invalid JSON: {str(e)}'}
-    except Exception as e:
-        return {'status': 'error', 'error': str(e)}
+        return {'status': 'error', 'error': str(e), 'message': f'Ошибка обработки: {str(e)}'}
 
 
 @app.route('/analyze-bti', methods=['POST'])
 def handle_analyze_bti():
     try:
         data = request.get_json(force=True)
-        if not data:
+        if data is None:
             return jsonify({'status': 'error', 'error': 'Expected JSON body'}), 400
-        result = process_draw_shots_request(data)
+        result = process_bti_shots_request(data)
         return jsonify(result)
     except Exception as e:
         return jsonify({'status': 'error', 'error': str(e)}), 500
