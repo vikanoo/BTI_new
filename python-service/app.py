@@ -1080,8 +1080,9 @@ def handle_draw_shots():
     if not shots_param:
         return jsonify({"error": "No X-Shots header provided"}), 400
 
+    import base64 as _base64
     image_bytes = request.files['image'].read()
-    points_description = json.loads(shots_param)
+    points_description = json.loads(_base64.b64decode(shots_param).decode('utf-8'))
 
     image_array = np.frombuffer(image_bytes, np.uint8)
     image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
