@@ -1010,5 +1010,89 @@ def handle_extract_rooms():
     return jsonify(result)
 
 
+def _preprocess_image(image):
+    gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+    blurred = cv2.GaussianBlur(gray, (5, 5), 0)
+    _, thresh = cv2.threshold(blurred, 127, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
+    kernel = np.ones((3, 3), np.uint8)
+    morph = cv2.morphologyEx(thresh, cv2.MORPH_CLOSE, kernel, iterations=2)
+    return morph
+
+
+def _find_room_contours(processed_image):
+    contours, _ = cv2.findContours(processed_image, cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+    return contours
+
+
+def _get_room_corners(contours, min_area=1000):
+    rooms = []
+    for contour in contours:
+        area = cv2.contourArea(contour)
+        if area > min_area:
+            approx = cv2.approxPolyDP(contour, 0.02 * cv2.arcLength(contour, True), True)
+            if len(approx) == 4:
+                corners = approx.reshape(4, 2)
+                rooms.append(corners.tolist())
+    return rooms
+
+
+def _get_coordinates_from_description(description, room_corners):
+    x, y = 0, 0
+    if "у окна" in description:
+        x = (room_corners[0][0] + room_corners[1][0]) // 2
+        y = room_corners[0][1] + 10
+    elif "у двери" in description:
+        x = (room_corners[2][0] + room_corners[3][0]) // 2
+        y = room_corners[2][1] - 10
+    elif "в углу" in description:
+        x, y = room_corners[0]
+    elif "в центре" in description:
+        x = (room_corners[0][0] + room_corners[2][0]) // 2
+        y = (room_corners[0][1] + room_corners[2][1]) // 2
+    elif "у входа" in description:
+        x = (room_corners[2][0] + room_corners[3][0]) // 2
+        y = room_corners[2][1] - 10
+    elif "у противоположной стены" in description:
+        x = (room_corners[0][0] + room_corners[1][0]) // 2
+        y = room_corners[0][1] + 10
+    return (x, y)
+
+
+def _draw_shot_points(image, points_description, rooms_corners):
+    for shot in points_description.get("shots", []):
+        room_id = shot.get("room_id", "room_1")
+        position = shot.get("position", "")
+        label = shot.get("shot_id", "")
+        room_index = int(room_id.split("_")[1]) - 1
+        if room_index < len(rooms_corners):
+            room_corners = rooms_corners[room_index]
+            x, y = _get_coordinates_from_description(position, room_corners)
+            cv2.circle(image, (x, y), 5, (0, 0, 255), -1)
+            cv2.putText(image, label, (x + 10, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+
+
+@app.route('/draw-shots', methods=['POST'])
+def handle_draw_shots():
+    if 'image' not in request.files:
+        return jsonify({"error": "No image file provided"}), 400
+    if 'shots_json' not in request.form:
+        return jsonify({"error": "No shots_json provided"}), 400
+
+    image_bytes = request.files['image'].read()
+    points_description = json.loads(request.form['shots_json'])
+
+    image_array = np.frombuffer(image_bytes, np.uint8)
+    image = cv2.imdecode(image_array, cv2.IMREAD_COLOR)
+
+    processed = _preprocess_image(image)
+    contours = _find_room_contours(processed)
+    rooms_corners = _get_room_corners(contours)
+
+    _draw_shot_points(image, points_description, rooms_corners)
+
+    _, buffer = cv2.imencode('.png', image)
+    return send_file(io.BytesIO(buffer.tobytes()), mimetype='image/png')
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
