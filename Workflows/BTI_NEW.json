@@ -1068,7 +1068,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer SUPABASE_SERVICE_ROLE_KEY"
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
             },
             {
               "name": "Content-Type",
@@ -1292,7 +1292,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer SUPABASE_SERVICE_ROLE_KEY"
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
             }
           ]
         },
@@ -1443,7 +1443,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer SUPABASE_SERVICE_ROLE_KEY"
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
             },
             {
               "name": "apikey",
@@ -1598,7 +1598,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer SUPABASE_SERVICE_ROLE_KEY"
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
             },
             {
               "name": "apikey",
@@ -1903,7 +1903,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer SUPABASE_SERVICE_ROLE_KEY"
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
             },
             {
               "name": "apikey",
@@ -2052,7 +2052,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer SUPABASE_SERVICE_ROLE_KEY"
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
             },
             {
               "name": "apikey",
@@ -2116,7 +2116,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer SUPABASE_SERVICE_ROLE_KEY"
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
             },
             {
               "name": "apikey",
@@ -2258,7 +2258,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer SUPABASE_SERVICE_ROLE_KEY"
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
             },
             {
               "name": "Content-Type",
@@ -2478,7 +2478,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer SUPABASE_SERVICE_ROLE_KEY"
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
             },
             {
               "name": "apikey",
@@ -2576,7 +2576,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer SUPABASE_SERVICE_ROLE_KEY"
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
             },
             {
               "name": "apikey",
@@ -2674,7 +2674,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer SUPABASE_SERVICE_ROLE_KEY"
+              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
             },
             {
               "name": "apikey",
