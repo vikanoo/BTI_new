@@ -1450,7 +1450,6 @@ def handle_analyze_bti():
 
 
 def get_column_letter(n):
-    """Генерирует имена колонок как в Excel: A, B, C... Z, AA, AB..."""
     string = ""
     while n > 0:
         n, remainder = divmod(n - 1, 26)
@@ -1459,15 +1458,13 @@ def get_column_letter(n):
 
 @app.route('/apply-grid', methods=['POST'])
 def apply_grid():
-    # 1. Проверяем, есть ли файл в запросе
     if 'file' not in request.files:
         return {"error": "No file part"}, 400
 
     file = request.files['file']
-    # Получаем шаг сетки из параметров запроса (по умолчанию 100 пикселей)
-    step = int(request.args.get('step', 100))
+    # Уменьшаем шаг по умолчанию до 50 для большей точности
+    step = int(request.args.get('step', 50))
 
-    # 2. Открываем изображение
     try:
         img = Image.open(file.stream).convert("RGB")
     except Exception as e:
@@ -1476,34 +1473,41 @@ def apply_grid():
     draw = ImageDraw.Draw(img)
     width, height = img.size
 
-    # Попытка загрузить шрифт (в Linux/Docker может потребоваться путь к .ttf)
     try:
+        # Пытаемся загрузить шрифт, если нет - используем базовый
         font = ImageFont.load_default()
-    except Exception:
+    except:
         font = None
 
-    # Настройки стиля
-    grid_color = (255, 0, 0, 150) # Красный с прозрачностью
-    text_color = (200, 0, 0)      # Темно-красный для текста
+    # Цвета
+    grid_color = (255, 0, 0, 80)  # Сделали линии еще прозрачнее, чтобы не мешали
+    text_color = (255, 0, 0)      # Яркий красный для текста
+    halo_color = (255, 255, 255)  # Белая обводка
 
-    # 3. Рисуем вертикальные линии и буквы (A, B, C...)
+    # 1. Рисуем вертикальные линии и буквы
     for i, x in enumerate(range(0, width, step)):
         draw.line([(x, 0), (x, height)], fill=grid_color, width=1)
         label = get_column_letter(i + 1)
-        draw.text((x + 5, 5), label, fill=text_color, font=font)
 
-    # 4. Рисуем горизонтальные линии и цифры (1, 2, 3...)
+        # Смещаем текст: x + 5 (отступ от линии), 2 (отступ от верхнего края)
+        # Добавляем stroke_width для "ореола", чтобы текст не сливался с планом
+        draw.text((x + 5, 2), label, fill=text_color, font=font,
+                  stroke_width=2, stroke_fill=halo_color)
+
+    # 2. Рисуем горизонтальные линии и цифры
     for j, y in enumerate(range(0, height, step)):
         draw.line([(0, y), (width, y)], fill=grid_color, width=1)
         label = str(j + 1)
-        draw.text((5, y + 5), label, fill=text_color, font=font)
 
-    # 5. Сохраняем результат в буфер (BytesIO), чтобы не плодить файлы на диске
+        # Смещаем текст: 2 (отступ от левого края), y + 2 (отступ от линии)
+        draw.text((2, y + 2), label, fill=text_color, font=font,
+                  stroke_width=2, stroke_fill=halo_color)
+
     img_byte_arr = io.BytesIO()
-    img.save(img_byte_arr, format='JPEG', quality=85)
+    img.save(img_byte_arr, format='PNG') # PNG сохранит четкость линий лучше
     img_byte_arr.seek(0)
 
-    return send_file(img_byte_arr, mimetype='image/jpeg')
+    return send_file(img_byte_arr, mimetype='image/png')
 
 
 if __name__ == '__main__':
