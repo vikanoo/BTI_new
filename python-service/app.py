@@ -1449,23 +1449,15 @@ def handle_analyze_bti():
         return jsonify({'status': 'error', 'error': str(e)}), 500
 
 
-def get_column_letter(n):
-    """Генерирует имена колонок: A, B, C... Z, AA, AB..."""
-    string = ""
-    while n > 0:
-        n, remainder = divmod(n - 1, 26)
-        string = chr(65 + remainder) + string
-    return string
-
 @app.route('/apply-grid', methods=['POST'])
-def apply_grid():
-    # 1. Проверка наличия файла
+def apply_beacons():
     if 'file' not in request.files:
         return {"error": "No file part"}, 400
 
     file = request.files['file']
+    # Оптимальный шаг для маяков — около 80-100 пикселей
+    step = int(request.args.get('step', 100))
 
-    # 2. Открытие изображения
     try:
         img = Image.open(file.stream).convert("RGB")
     except Exception as e:
@@ -1473,70 +1465,42 @@ def apply_grid():
 
     draw = ImageDraw.Draw(img)
     width, height = img.size
-    step = width // 15
 
-    # 3. Настройка шрифта
-    # Размер шрифта подстраивается под шаг сетки (примерно 40% от шага)
-    font_size = max(14, int(step * 0.4))
+    # Настройка шрифта для номеров точек
+    font_size = 14
     try:
-        # Для Windows: "arial.ttf", для Linux: "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"
-        # Если путь не найден, Pillow использует стандартный (мелкий) шрифт
         font = ImageFont.load_default()
     except:
         font = None
 
-    # Цвета
-    grid_color = (255, 0, 0, 80)   # Полупрозрачный красный для линий
-    text_color = (255, 0, 0)       # Яркий красный для текста
-    shadow_color = (0, 0, 0)       # Черный для тени (читаемость на любом фоне)
+    radius = 12  # Размер красного кружка
+    counter = 1
 
-    # 4. Отрисовка ВЕРТИКАЛЬНЫХ линий и БУКВ
-    for i, x in enumerate(range(0, width, step)):
-        # Рисуем линию
-        draw.line([(x, 0), (x, height)], fill=grid_color, width=1)
+    # Рисуем сетку из точек
+    # Начинаем с отступа step, чтобы точки не липли к краям
+    for y in range(step, height - 20, step):
+        for x in range(step, width - 20, step):
+            # 1. Рисуем подложку (белый ореол), чтобы точку было видно на темном фоне
+            draw.ellipse([x - radius - 2, y - radius - 2, x + radius + 2, y + radius + 2], fill=(255, 255, 255))
 
-        label = get_column_letter(i + 1)
+            # 2. Рисуем саму красную точку
+            draw.ellipse([x - radius, y - radius, x + radius, y + radius], fill=(255, 0, 0))
 
-        # Сдвигаем БУКВЫ в правый верхний угол ячейки
-        # x + step (правый край) - отступ.
-        # Если это последняя неполная ячейка, проверяем границы
-        if x + step <= width:
-            label_x = x + step - (font_size + 5)
-        else:
-            label_x = x + 5 # Если ячейка обрезана краем фото
+            # 3. Пишем номер точки белым цветом по центру
+            # Немного корректируем координаты текста, чтобы он был по центру круга
+            text_str = str(counter)
+            text_pos = (x - 6, y - 7) if len(text_str) == 1 else (x - 10, y - 7)
 
-        label_y = 5 # Небольшой отступ от самого верха
+            draw.text(text_pos, text_str, fill=(255, 255, 255), font=font)
 
-        # Рисуем "тень" (черный текст со сдвигом в 1 пиксель)
-        draw.text((label_x + 1, label_y + 1), label, fill=shadow_color, font=font)
-        # Рисуем основной текст
-        draw.text((label_x, label_y), label, fill=text_color, font=font)
+            counter += 1
 
-    # 5. Отрисовка ГОРИЗОНТАЛЬНЫХ линий и ЦИФР
-    for j, y in enumerate(range(0, height, step)):
-        # Рисуем линию
-        draw.line([(0, y), (width, y)], fill=grid_color, width=1)
-
-        label = str(j + 1)
-
-        # Сдвигаем ЦИФРЫ в левый верхний угол, но чуть НИЖЕ линии (y + 10)
-        # Таким образом, буква "А" (сверху-справа) и цифра "1" (снизу-слева) не пересекутся
-        label_x = 10
-        label_y = y + 10
-
-        # Рисуем "тень"
-        draw.text((label_x + 1, label_y + 1), label, fill=shadow_color, font=font)
-        # Рисуем основной текст
-        draw.text((label_x, label_y), label, fill=text_color, font=font)
-
-    # 6. Подготовка ответа
+    # Сохраняем результат
     img_byte_arr = io.BytesIO()
-    # Сохраняем в PNG для сохранения идеальной четкости линий
     img.save(img_byte_arr, format='PNG')
     img_byte_arr.seek(0)
 
     return send_file(img_byte_arr, mimetype='image/png')
-
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
