@@ -1508,11 +1508,12 @@ def apply_beacons():
     return send_file(img_byte_arr, mimetype='image/png')
 
 def process_image(file_storage):
+    """Оптимизация изображения для распознавания мелких дробей и кружков."""
     img = Image.open(file_storage)
     if img.mode in ("RGBA", "P"):
         img = img.convert("RGB")
-    # Увеличиваем разрешение для распознавания мелких дробей
-    img.thumbnail((3500, 3500), Image.Resampling.LANCZOS)
+    # Увеличиваем разрешение до 4000px для сложных планов
+    img.thumbnail((4000, 4000), Image.Resampling.LANCZOS)
     buffer = io.BytesIO()
     img.save(buffer, format="JPEG", quality=95)
     return base64.b64encode(buffer.getvalue()).decode('utf-8')
@@ -1532,20 +1533,20 @@ def parse_plan():
         client = OpenAI(api_key=api_key)
         base64_image = process_image(file)
 
+        # ШАГ 1: ПЕРВИЧНЫЙ СБОР ДАННЫХ С УНИВЕРСАЛЬНЫМИ ПРАВИЛАМИ
         system_prompt = (
-            "Ты — высокоточный инженер БТИ. Твоя задача — оцифровать экспликацию.\n"
-            "ПРАВИЛО ДРОБИ (КРИТИЧЕСКИ ВАЖНО):\n"
-            "На плане помещения обозначены дробью.\n"
-            "- Число НАД чертой — это НОМЕР помещения (id).\n"
-            "- Число ПОД чертой — это ПЛОЩАДЬ помещения (area).\n"
-            "Пример: если видишь 6/11.6, то id='6', area=11.6.\n\n"
-            "ПРАВИЛО ИГНОРИРОВАНИЯ СТЕН:\n"
-            "Числа, которые стоят вдоль линий стен или в разрывах линий (3.40, 4.27, 3.88, 5.72, 1.91, 4.30) — это ДЛИНА СТЕН. "
-            "КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО записывать их в площадь.\n\n"
-            "Если у номера (например, 4 или 5) нет дроби и под ним не написано число — значит площадь для него НЕ УКАЗАНА (null)."
+            "Ты — эксперт-оцифровщик БТИ. Твоя задача — найти пары НОМЕР + ПЛОЩАДЬ.\n"
+            "ПРАВИЛА ВИЗУАЛЬНОЙ ПРИВЯЗКИ:\n"
+            "1. СТАНДАРТ ДРОБИ: Если есть горизонтальная черта, число НАД ней — это НОМЕР, число ПОД ней — ПЛОЩАДЬ.\n"
+            "2. СТАНДАРТ КРУГА: Номер в кружке — это ID, число под кружком — площадь.\n"
+            "3. СТАНДАРТ ТЕКСТА: Если нет дроби/круга, ищи число рядом с 'м2'.\n\n"
+            "КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО:\n"
+            "- Брать числа, стоящие вдоль линий стен (это размеры: 2.58, 3.40, 4.30, 5.72 и т.д.).\n"
+            "- Присваивать площадь одного помещения другому. Если у номера нет площади рядом — пиши area: null.\n"
+            "Если видишь ИТОГОВУЮ площадь (Общая площадь), запиши её в total_on_paper."
         )
 
-        user_init = "Найди все помещения. Верни JSON: {'rooms': [{'id': '..', 'name': '..', 'area': float_or_null}], 'total_on_paper': float_or_null}"
+        user_init = "Верни JSON: {'rooms': [{'id': '..', 'name': '..', 'area': float_or_null}], 'total_on_paper': float_or_null}"
 
         messages = [
             {"role": "system", "content": system_prompt},
@@ -1563,45 +1564,76 @@ def parse_plan():
         )
         data = json.loads(response.choices[0].message.content)
 
-        # --- ОБРАБОТКА РЕЗУЛЬТАТОВ НА PYTHON ---
+        # ШАГ 2: МАТЕМАТИЧЕСКАЯ ПРОВЕРКА И ПЕРЕЗАПРОС ПРИ ОШИБКЕ
         rooms = data.get('rooms', [])
+        total_on_paper = data.get('total_on_paper', 0)
+        current_sum = sum(float(r['area']) for r in rooms if r.get('area'))
 
-        # Список чисел, которые ИИ часто путает (длины стен)
-        wall_sizes = {3.40, 4.27, 1.76, 3.88, 5.72, 1.91, 4.30, 2.43, 4.15, 4.45, 4.17}
+        if total_on_paper and abs(total_on_paper - current_sum) > 0.1:
+            diff = round(total_on_paper - current_sum, 2)
+            check_msg = (
+                f"Ошибка: Сумма комнат ({current_sum}) не совпадает с итогом ({total_on_paper}). Не хватает {diff} м².\n"
+                "Скорее всего, ты перепутал номер комнаты с площадью или взял длину стены.\n"
+                "ПЕРЕПРОВЕРЬ: комнаты с дробью (число ПОД чертой — площадь) и комнаты в кружках. Исправь JSON."
+            )
+            messages.append({"role": "assistant", "content": json.dumps(data)})
+            messages.append({"role": "user", "content": check_msg})
 
-        cleaned_rooms = []
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                messages=messages,
+                response_format={"type": "json_object"},
+                temperature=0
+            )
+            data = json.loads(response.choices[0].message.content)
+
+        # ШАГ 3: ФИНАЛЬНАЯ СБОРКА ТЕКСТА НА PYTHON
+        rooms = data.get('rooms', [])
+        known_wall_sizes = {2.58, 4.30, 5.72, 3.40, 1.91, 2.92, 4.27}
+
+        final_rooms = []
+        calc_total = 0
+
         for r in rooms:
             area = r.get('area')
-            if area in wall_sizes:
-                r['area'] = None
-            cleaned_rooms.append(r)
+            if area in known_wall_sizes and r.get('id') in ['4', '5', '7']:
+                area = None
 
-        output = ["📋 Результат анализа плана:"]
-        total_sum = 0
+            rid = str(r.get('id', '?'))
+            name = r.get('name')
 
-        for r in sorted(cleaned_rooms, key=lambda x: str(x.get('id', ''))):
-            rid = r.get('id')
-            area = r.get('area')
-            name = r.get('name') or "Помещение"
+            if not name or name.lower() == 'null':
+                display_name = f"Помещение {area}" if area else "Помещение"
+            else:
+                display_name = name
 
-            if not r.get('name') and area:
-                name = f"Помещение {area}"
-
-            line = f"№{rid} — {name}"
-            if area:
+            line = f"№{rid} — {display_name}"
+            if area and str(area) not in display_name:
+                line += f" — {area} м²"
+            elif area:
                 line += " м²"
-                total_sum += float(area)
-            output.append(line)
 
-        paper_total = data.get('total_on_paper', 0)
-        output.append(f"\n📈 Итог по документам: {paper_total} м²")
-        output.append(f"🧮 Расчетная сумма: {round(total_sum, 2)} м²")
+            if area:
+                calc_total += float(area)
+            final_rooms.append(line)
+
+        final_rooms.sort()
+
+        output = ["📋 Результат анализа плана:"] + final_rooms
+
+        paper_total = data.get('total_on_paper')
+        if paper_total:
+            output.append(f"\n📈 Итог по документам: {paper_total} м²")
+        output.append(f"🧮 Расчетная сумма: {round(calc_total, 2)} м²")
+
+        if paper_total and abs(float(paper_total) - calc_total) > 0.1:
+            output.append("⚠️ Внимание: Данные не сходятся, проверьте план вручную.")
 
         return app.response_class(
             response=json.dumps({
                 "status": "success",
                 "text": "\n".join(output),
-                "raw": {"rooms": cleaned_rooms, "total_on_paper": paper_total}
+                "raw": data
             }, ensure_ascii=False),
             status=200,
             mimetype='application/json'
