@@ -1511,8 +1511,8 @@ def process_image(file_storage):
     img = Image.open(file_storage)
     if img.mode in ("RGBA", "P"):
         img = img.convert("RGB")
-    # Высокое разрешение для мелких цифр
-    img.thumbnail((3000, 3000), Image.Resampling.LANCZOS)
+    # Увеличиваем разрешение для распознавания мелких дробей
+    img.thumbnail((3500, 3500), Image.Resampling.LANCZOS)
     buffer = io.BytesIO()
     img.save(buffer, format="JPEG", quality=95)
     return base64.b64encode(buffer.getvalue()).decode('utf-8')
@@ -1532,20 +1532,20 @@ def parse_plan():
         client = OpenAI(api_key=api_key)
         base64_image = process_image(file)
 
-        # --- ШАГ 1: ПЕРВИЧНЫЙ СБОР ДАННЫХ ---
         system_prompt = (
-            "Ты — робот-оцифровщик планов БТИ. Твоя работа — сухая выгрузка цифр.\n"
-            "ПРАВИЛА:\n"
-            "1. ИГНОРИРУЙ числа, обозначающие длину стен (2.58, 4.30, 2.80, 3.10). Они стоят вдоль линий.\n"
-            "2. ПЛОЩАДЬ: На планах с дробью площадь — это число ПОД чертой. Если дроби нет, ищи число с 'м2'.\n"
-            "3. Если для номера помещения НЕТ числа площади, пиши null в поле area.\n"
-            "4. НЕ ДОДУМЫВАЙ названия. Если слова (кухня, жилая) нет — пиши null в name."
+            "Ты — высокоточный инженер БТИ. Твоя задача — оцифровать экспликацию.\n"
+            "ПРАВИЛО ДРОБИ (КРИТИЧЕСКИ ВАЖНО):\n"
+            "На плане помещения обозначены дробью.\n"
+            "- Число НАД чертой — это НОМЕР помещения (id).\n"
+            "- Число ПОД чертой — это ПЛОЩАДЬ помещения (area).\n"
+            "Пример: если видишь 6/11.6, то id='6', area=11.6.\n\n"
+            "ПРАВИЛО ИГНОРИРОВАНИЯ СТЕН:\n"
+            "Числа, которые стоят вдоль линий стен или в разрывах линий (3.40, 4.27, 3.88, 5.72, 1.91, 4.30) — это ДЛИНА СТЕН. "
+            "КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО записывать их в площадь.\n\n"
+            "Если у номера (например, 4 или 5) нет дроби и под ним не написано число — значит площадь для него НЕ УКАЗАНА (null)."
         )
 
-        user_init = (
-            "Найди все помещения и итоговую площадь (Общая площадь). "
-            "Верни JSON: {'rooms': [{'id': '..', 'name': '..', 'area': float_or_null}], 'total_on_paper': float_or_null}"
-        )
+        user_init = "Найди все помещения. Верни JSON: {'rooms': [{'id': '..', 'name': '..', 'area': float_or_null}], 'total_on_paper': float_or_null}"
 
         messages = [
             {"role": "system", "content": system_prompt},
@@ -1561,68 +1561,47 @@ def parse_plan():
             response_format={"type": "json_object"},
             temperature=0
         )
-        first_data = json.loads(response.choices[0].message.content)
+        data = json.loads(response.choices[0].message.content)
 
-        # --- ШАГ 2: ПРОВЕРКА ПО СУММАМ (МАТЕМАТИКА) ---
-        rooms = first_data.get('rooms', [])
-        found_areas = [float(r['area']) for r in rooms if r.get('area') is not None]
-        calculated_sum = round(sum(found_areas), 2)
-        total_on_paper = first_data.get('total_on_paper')
+        # --- ОБРАБОТКА РЕЗУЛЬТАТОВ НА PYTHON ---
+        rooms = data.get('rooms', [])
 
-        check_msg = f"Математическая проверка: Сумма найденных мною площадей = {calculated_sum}."
-        if total_on_paper:
-            check_msg += f" На плане указана общая площадь = {total_on_paper}."
+        # Список чисел, которые ИИ часто путает (длины стен)
+        wall_sizes = {3.40, 4.27, 1.76, 3.88, 5.72, 1.91, 4.30, 2.43, 4.15, 4.45, 4.17}
 
-        check_msg += (
-            "\nЗадание: Перепроверь чертеж. Если сумма не сходится с итогом:\n"
-            "1. Проверь, не взял ли ты длину стен вместо площади?\n"
-            "2. Не пропустил ли ты площадь какого-то помещения (например, балкона или коридора)?\n"
-            "Исправь JSON и верни финальный вариант."
-        )
-
-        messages.append({"role": "assistant", "content": json.dumps(first_data)})
-        messages.append({"role": "user", "content": check_msg})
-
-        final_response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=messages,
-            response_format={"type": "json_object"},
-            temperature=0
-        )
-        final_data = json.loads(final_response.choices[0].message.content)
-
-        # --- ШАГ 3: ФОРМИРОВАНИЕ ТЕКСТА ---
-        output = ["📋 Результат анализа плана:"]
-        final_rooms = final_data.get('rooms', [])
-        final_rooms.sort(key=lambda x: str(x.get('id', '')))
-
-        for r in final_rooms:
-            rid = str(r.get('id', '?'))
-            name = r.get('name')
+        cleaned_rooms = []
+        for r in rooms:
             area = r.get('area')
+            if area in wall_sizes:
+                r['area'] = None
+            cleaned_rooms.append(r)
 
-            if not name or name.lower() == 'null':
-                display_name = f"Помещение {area}" if area else "Помещение"
-            else:
-                display_name = name
+        output = ["📋 Результат анализа плана:"]
+        total_sum = 0
 
-            line = f"№{rid} — {display_name}"
-            if area and str(area) not in display_name:
-                line += f" — {area} м²"
-            elif area:
+        for r in sorted(cleaned_rooms, key=lambda x: str(x.get('id', ''))):
+            rid = r.get('id')
+            area = r.get('area')
+            name = r.get('name') or "Помещение"
+
+            if not r.get('name') and area:
+                name = f"Помещение {area}"
+
+            line = f"№{rid} — {name}"
+            if area:
                 line += " м²"
-
+                total_sum += float(area)
             output.append(line)
 
-        if total_on_paper:
-            output.append(f"\n📈 Итог по документам: {total_on_paper} м²")
-        output.append(f"🧮 Расчетная сумма: {calculated_sum} м²")
+        paper_total = data.get('total_on_paper', 0)
+        output.append(f"\n📈 Итог по документам: {paper_total} м²")
+        output.append(f"🧮 Расчетная сумма: {round(total_sum, 2)} м²")
 
         return app.response_class(
             response=json.dumps({
                 "status": "success",
                 "text": "\n".join(output),
-                "raw": final_data
+                "raw": {"rooms": cleaned_rooms, "total_on_paper": paper_total}
             }, ensure_ascii=False),
             status=200,
             mimetype='application/json'
