@@ -1,4 +1,5 @@
 from flask import Flask, request, send_file, jsonify
+from openai import OpenAI
 from pdf2image import convert_from_bytes
 from PIL import Image, ImageDraw, ImageFont
 import os
@@ -14,6 +15,10 @@ from datetime import datetime
 from io import BytesIO
 
 app = Flask(__name__)
+
+# Инициализация клиента OpenAI
+# Рекомендуется задать переменную окружения: export OPENAI_API_KEY='ваш_ключ'
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY", "ВАШ_КЛЮЧ_ОТ_OPENAI"))
 
 
 def region_to_polygon(region, width, height):
@@ -1501,6 +1506,108 @@ def apply_beacons():
     img_byte_arr.seek(0)
 
     return send_file(img_byte_arr, mimetype='image/png')
+
+def process_image(file_storage):
+    """Оптимизация изображения перед отправкой в AI."""
+    img = Image.open(file_storage)
+    if img.mode in ("RGBA", "P"):
+        img = img.convert("RGB")
+    img.thumbnail((2000, 2000))
+    buffer = io.BytesIO()
+    img.save(buffer, format="JPEG", quality=85)
+    return base64.b64encode(buffer.getvalue()).decode('utf-8')
+
+
+@app.route('/parse-plan', methods=['POST'])
+def parse_plan():
+    # 1. ПОЛУЧЕНИЕ API ТОКЕНА ИЗ QUERY PARAMETERS
+    api_key = request.args.get('api_key')
+
+    if not api_key:
+        return jsonify({"status": "error", "message": "Missing api_key in query parameters"}), 401
+
+    if 'file' not in request.files:
+        return jsonify({"status": "error", "message": "No file uploaded"}), 400
+
+    file = request.files['file']
+
+    try:
+        # Инициализация клиента OpenAI с ключом из запроса
+        client = OpenAI(api_key=api_key)
+
+        base64_image = process_image(file)
+
+        # Промпты с вашими правилами (Приоритет таблицы + Помещение/null)
+        system_prompt = (
+            "Ты — эксперт БТИ. Твоя задача — извлечь список помещений. "
+            "ПРАВИЛО ПРИОРИТЕТА: Если на плане есть экспликация (таблица), "
+            "данные в ней приоритетнее любых надписей внутри комнат на чертеже."
+        )
+
+        user_prompt_1 = (
+            "Проанализируй план БТИ. Составь список всех помещений. "
+            "Для каждого укажи: id (номер), name (название), area (площадь). "
+            "Если названия нет — пиши 'Помещение'. Если площадь не указана — ставь null. "
+            "Верни JSON: {'rooms': [{'id': '..', 'name': '..', 'area': '..'}], 'total_reported': 0.0}"
+        )
+
+        messages = [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": [
+                {"type": "text", "text": user_prompt_1},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+            ]}
+        ]
+
+        # Первый запрос
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            response_format={"type": "json_object"},
+            temperature=0
+        )
+        first_analysis = json.loads(response.choices[0].message.content)
+
+        # 2. УМНАЯ САМОПРОВЕРКА
+        rooms = first_analysis.get('rooms', [])
+        valid_areas = [float(re.sub(r'[^\d.]', '', str(r['area']).replace(',', '.')))
+                       for r in rooms if r.get('area') and re.sub(r'[^\d.]', '', str(r['area']))]
+
+        if valid_areas:
+            sum_val = round(sum(valid_areas), 2)
+            check_msg = f"Сумма площадей: {sum_val}. Перепроверь экспликацию и план на соответствие этой сумме. Исправь JSON если нужно."
+        else:
+            check_msg = "Площади не найдены. Перепроверь таблицу и чертеж: все ли номера внесены? Исправь JSON."
+
+        messages.append({"role": "assistant", "content": json.dumps(first_analysis)})
+        messages.append({"role": "user", "content": check_msg})
+
+        # Второй запрос (Self-Correction)
+        final_response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=messages,
+            response_format={"type": "json_object"},
+            temperature=0
+        )
+        final_data = json.loads(final_response.choices[0].message.content)
+
+        # 3. ФОРМИРОВАНИЕ ТЕКСТА
+        output_lines = []
+        for r in final_data.get('rooms', []):
+            line = f"№{r.get('id', '?')} — {r.get('name', 'Помещение')}"
+            if r.get('area'):
+                line += f" — {r['area']} м²"
+            output_lines.append(line)
+
+        return jsonify({
+            "status": "success",
+            "text": "\n".join(output_lines),
+            "data": final_data
+        })
+
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
