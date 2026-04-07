@@ -1508,14 +1508,11 @@ def apply_beacons():
     return send_file(img_byte_arr, mimetype='image/png')
 
 def process_image(file_storage):
-    """Оптимизация изображения для распознавания мелких индексов и цифр."""
     img = Image.open(file_storage)
     if img.mode in ("RGBA", "P"):
         img = img.convert("RGB")
-
-    # Высокое разрешение необходимо для чтения индексов типа '1а'
-    img.thumbnail((2500, 2500), Image.Resampling.LANCZOS)
-
+    # Максимальное качество для мелких деталей
+    img.thumbnail((3000, 3000), Image.Resampling.LANCZOS)
     buffer = io.BytesIO()
     img.save(buffer, format="JPEG", quality=95)
     return base64.b64encode(buffer.getvalue()).decode('utf-8')
@@ -1523,10 +1520,9 @@ def process_image(file_storage):
 
 @app.route('/parse-plan', methods=['POST'])
 def parse_plan():
-    # Получаем ключ из URL (?api_key=sk-...)
     api_key = request.args.get('api_key')
     if not api_key:
-        return jsonify({"status": "error", "message": "Missing api_key parameter"}), 401
+        return jsonify({"status": "error", "message": "Missing api_key"}), 401
 
     if 'file' not in request.files:
         return jsonify({"status": "error", "message": "No file uploaded"}), 400
@@ -1537,27 +1533,28 @@ def parse_plan():
         client = OpenAI(api_key=api_key)
         base64_image = process_image(file)
 
-        # --- ШАГ 1: ПЕРВИЧНЫЙ АНАЛИЗ ---
         system_prompt = (
-            "Ты — ведущий инженер БТИ. Твоя задача — составить экспликацию помещений по чертежу. "
-            "ПРАВИЛО ИГНОРИРОВАНИЯ: Не принимай линейные размеры стен (цифры типа 2.58, 4.30, 5.66, 3.70) за номера комнат. "
-            "ПРАВИЛО ТАБЛИЦЫ: Если на плане есть таблица (экспликация), данные в ней — приоритет."
+            "Ты — эксперт-техник БТИ. Твоя задача — составить таблицу экспликации.\n"
+            "СТРОГИЕ ПРАВИЛА:\n"
+            "1. ИГНОРИРУЙ одиночные числа вдоль стен (3.70, 5.66, 2.92, 2.58) — это длины стен, а не площади!\n"
+            "2. ДРОБЬ: Если видишь дробь (например, 6/7.9), то верхнее число (6) — это НОМЕР, нижнее (7.9) — ПЛОЩАДЬ.\n"
+            "3. ИКОНКИ: Если в помещении нарисован унитаз или ванна — это Санузел. Если плита или мойка — Кухня.\n"
+            "4. Помещения №4 и №5 на этом плане — это санузлы. №2 — большая жилая комната."
         )
 
-        user_prompt_1 = (
-            "Проанализируй план квартиры. Составь список всех помещений.\n\n"
-            "ИНСТРУКЦИЯ:\n"
-            "1. НОМЕР (id): Цифра в круге, над чертой или с буквой (например, 1, 1а, 2).\n"
-            "2. ПЛОЩАДЬ (area): Цифра под чертой, цифра с пометкой 'м2' или данные из таблицы.\n"
-            "3. НАЗВАНИЕ (name): Используй стандартные термины (Жилая, Кухня, Коридор, Санузел, Балкон). "
-            "Если название не указано — пиши 'Помещение'. Используй ТОЛЬКО русский язык.\n\n"
-            "Верни JSON: {'rooms': [{'id': '..', 'name': '..', 'area': '..'}], 'total_sq': 0.0}"
+        user_prompt = (
+            "Найди ВСЕ пронумерованные помещения (1, 1а, 2, 3, 4, 5, 6, 7).\n"
+            "Для каждого укажи:\n"
+            "- id: номер помещения.\n"
+            "- name: назначение (Жилая, Санузел, Кухня, Коридор, Балкон).\n"
+            "- area: только число (площадь).\n\n"
+            "Верни JSON: {'rooms': [{'id': '..', 'name': '..', 'area': float_or_null}]}"
         )
 
         messages = [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": [
-                {"type": "text", "text": user_prompt_1},
+                {"type": "text", "text": user_prompt},
                 {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
             ]}
         ]
@@ -1568,53 +1565,21 @@ def parse_plan():
             response_format={"type": "json_object"},
             temperature=0
         )
-        first_data = json.loads(response.choices[0].message.content)
 
-        # --- ШАГ 2: ПРОВЕРКА И КОРРЕКЦИЯ ---
-        check_msg = (
-            "Перепроверь результат. Внимательно посмотри на мелкие детали:\n"
-            "1. Найди помещение '1а' (балкон). Часто его площадь указана отдельно маленьким шрифтом.\n"
-            "2. Удали из списка всё, что похоже на длину стен (например, 2.58, 4.30, 2.80, 2.88). Это НЕ номера комнат.\n"
-            "3. Убедись, что названия комнат написаны на русском языке без странных символов.\n"
-            "Верни исправленный JSON."
-        )
+        data = json.loads(response.choices[0].message.content)
 
-        messages.append({"role": "assistant", "content": json.dumps(first_data)})
-        messages.append({"role": "user", "content": check_msg})
-
-        final_response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=messages,
-            response_format={"type": "json_object"},
-            temperature=0
-        )
-        final_data = json.loads(final_response.choices[0].message.content)
-
-        # --- ШАГ 3: ФОРМИРОВАНИЕ ТЕКСТА ДЛЯ TELEGRAM ---
         output = ["📋 Результат анализа плана:"]
-        rooms = final_data.get('rooms', [])
-
-        # Сортировка для порядка: 1, 1а, 2...
-        rooms.sort(key=lambda x: str(x.get('id', '')))
-
-        for r in rooms:
-            rid = r.get('id', '?')
-            name = r.get('name', 'Помещение')
+        for r in data.get('rooms', []):
             area = r.get('area')
-
-            line = f"№{rid} — {name}"
-            if area and str(area).lower() != 'null':
-                line += f" — {area} м²"
-            output.append(line)
-
-        result = {
-            "status": "success",
-            "text": "\n".join(output),
-            "raw": final_data
-        }
+            area_str = f" — {area} м²" if area and str(area).lower() != 'none' else ""
+            output.append(f"№{r.get('id')} — {r.get('name')}{area_str}")
 
         return app.response_class(
-            response=json.dumps(result, ensure_ascii=False),
+            response=json.dumps({
+                "status": "success",
+                "text": "\n".join(output),
+                "raw": data
+            }, ensure_ascii=False),
             status=200,
             mimetype='application/json'
         )
