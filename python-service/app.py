@@ -1,4 +1,5 @@
 from flask import Flask, request, send_file, jsonify
+import requests
 from openai import OpenAI
 from pdf2image import convert_from_bytes
 from PIL import Image, ImageDraw, ImageFont
