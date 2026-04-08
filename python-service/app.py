@@ -1444,17 +1444,6 @@ def process_bti_shots_request(input_data):
         return {'status': 'error', 'error': str(e), 'message': f'Ошибка обработки: {str(e)}'}
 
 
-@app.route('/analyze-bti', methods=['POST'])
-def handle_analyze_bti():
-    try:
-        data = request.get_json(force=True)
-        if data is None:
-            return jsonify({'status': 'error', 'error': 'Expected JSON body'}), 400
-        result = process_bti_shots_request(data)
-        return jsonify(result)
-    except Exception as e:
-        return jsonify({'status': 'error', 'error': str(e)}), 500
-
 
 @app.route('/apply-grid', methods=['POST'])
 def apply_beacons():
