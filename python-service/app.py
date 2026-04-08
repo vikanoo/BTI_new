@@ -1613,8 +1613,9 @@ def bti_endpoint():
         }), 200
 
     except Exception as e:
-        import traceback
-        traceback.print_exc()
+        import traceback, sys
+        traceback.print_exc(file=sys.stdout)
+        sys.stdout.flush()
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
