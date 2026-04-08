@@ -1520,21 +1520,21 @@ def apply_beacons():
 #     img.save(buffer, format="JPEG", quality=95)
 #     return base64.b64encode(buffer.getvalue()).decode('utf-8')
 
-def analyze_bti_with_hint(image_base64, target_area=None):
+def analyze_bti(image_base64, target_area=None):
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {OPENAI_API_KEY}"
     }
 
-    # Если пользователь передал площадь, добавляем это в промпт как ориентир
-    hint = ""
+    # Если target_area это 0, пустая строка или None — считаем, что площади нет
     if target_area:
-        hint = f"Учти, что общая площадь по документам должна быть около {target_area} кв.м. Если сумма площадей найденных комнат сильно отличается, проверь, не пропустил ли ты балкон, кладовую или коридор."
+        area_context = f"Ожидаемая общая площадь квартиры: {target_area} кв.м. Используй это для самопроверки."
+    else:
+        area_context = "Общая площадь неизвестна, определи её самостоятельно на основе экспликации."
 
     prompt = (
-        f"Ты — эксперт БТИ. Проанализируй план. {hint} "
-        "1. Найди все помещения и их площади. "
-        "2. Выведи результат строго в формате JSON: "
+        f"Ты — эксперт БТИ. Проанализируй план. {area_context} "
+        "Выведи результат строго в формате JSON: "
         "{'rooms': [{'name': '...', 'area': float}], 'total_sum': float}"
     )
 
@@ -1545,25 +1545,42 @@ def analyze_bti_with_hint(image_base64, target_area=None):
                 "role": "user",
                 "content": [
                     {"type": "text", "text": prompt},
-                    {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}"}}
+                    {"type": "image_url", "image_url": {
+                        "url": f"data:image/jpeg;base64,{image_base64}",
+                        "detail": "high"
+                    }}
                 ]
             }
         ],
         "response_format": { "type": "json_object" }
     }
 
-    response = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
-    return response.json()['choices'][0]['message']['content']
+    res = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+    return res.json()['choices'][0]['message']['content']
 
-@app.route('/parse-plan', methods=['POST'])
-def parse_plan():
-    # 1. Получаем параметры из Query
-    user_token = request.args.get('token')
-    user_expected_area = request.args.get('total_area', type=float) # Общая площадь от пользователя
-
-    if user_token != VALID_TOKEN:
+@app.route('/analyze-bti', methods=['POST'])
+def bti_endpoint():
+    # 1. Проверка токена (используем .strip() на случай лишних пробелов из n8n)
+    received_token = request.args.get('token', '').strip()
+    if received_token != VALID_TOKEN:
         return jsonify({"error": "Unauthorized"}), 401
 
+    # 2. Обработка площади (теперь допускает пустые значения)
+    raw_area = request.args.get('total_area', '')
+    target_area = None
+
+    # Список значений, которые мы считаем "пустыми"
+    null_values = ['none', 'null', 'undefined', '', '{{', '}}']
+
+    if raw_area:
+        clean_area = str(raw_area).lower().strip()
+        if clean_area not in null_values:
+            try:
+                target_area = float(clean_area.replace(',', '.'))
+            except ValueError:
+                target_area = None
+
+    # 3. Получение файла
     if 'file' not in request.files:
         return jsonify({"error": "No file uploaded"}), 400
 
@@ -1571,32 +1588,28 @@ def parse_plan():
     image_base64 = base64.b64encode(file.read()).decode('utf-8')
 
     try:
-        # 2. Анализ нейросетью
-        raw_result = analyze_bti_with_hint(image_base64, user_expected_area)
-        import json
-        data = json.loads(raw_result)
+        # 4. Анализ
+        analysis_raw = analyze_bti(image_base64, target_area)
+        data = json.loads(analysis_raw)
 
-        # 3. Логика проверки (Validation)
+        # 5. Сравнение
         ai_total = data.get('total_sum', 0)
-        verification_status = "ok"
-        difference = 0
+        verification = {"status": "skipped", "difference": 0}
 
-        if user_expected_area:
-            difference = abs(ai_total - user_expected_area)
-            # Если разница больше 0.5 кв.м. (учитываем погрешность округления)
-            if difference > 0.5:
-                verification_status = "discrepancy_detected"
+        # Проверка срабатывает только если у нас есть реальное число
+        if target_area is not None:
+            diff = abs(ai_total - target_area)
+            verification = {
+                "status": "ok" if diff <= 0.5 else "discrepancy",
+                "expected": target_area,
+                "calculated": ai_total,
+                "difference": round(diff, 2)
+            }
 
-        # 4. Формируем финальный ответ
         return jsonify({
             "status": "success",
             "analysis": data,
-            "verification": {
-                "status": verification_status,
-                "expected_area": user_expected_area,
-                "ai_calculated_area": ai_total,
-                "difference": round(difference, 2)
-            }
+            "verification": verification
         }), 200
 
     except Exception as e:
