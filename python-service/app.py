@@ -14,7 +14,6 @@ import re
 import base64
 from datetime import datetime
 from io import BytesIO
-from sentence_transformers import SentenceTransformer
 from supabase import create_client
 
 app = Flask(__name__)
@@ -29,7 +28,6 @@ SUPABASE_URL = os.getenv("SUPABASE_URL", "")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
 
-v_model = SentenceTransformer('clip-ViT-B-32')
 
 
 def region_to_polygon(region, width, height):
@@ -1518,13 +1516,35 @@ def apply_beacons():
 #     img.save(buffer, format="JPEG", quality=95)
 #     return base64.b64encode(buffer.getvalue()).decode('utf-8')
 
+def get_image_embedding(image_bytes):
+    """Генерирует текстовый эмбеддинг изображения через OpenAI (описание + embed)."""
+    img = Image.open(BytesIO(image_bytes))
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
+    buf = BytesIO()
+    img.save(buf, format='JPEG')
+    img_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+
+    desc_resp = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": [
+            {"type": "text", "text": "Опиши кратко структуру плана БТИ: список помещений, их площади и расположение."},
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}", "detail": "low"}}
+        ]}],
+        max_tokens=300
+    )
+    description = desc_resp.choices[0].message.content
+
+    embed_resp = client.embeddings.create(model="text-embedding-3-small", input=description)
+    return embed_resp.data[0].embedding
+
+
 def get_best_example(image_bytes):
-    """Находит ближайший пример БТИ в Supabase по векторному сходству (CLIP)."""
+    """Находит ближайший пример БТИ в Supabase по векторному сходству."""
     if not supabase:
         return None
     try:
-        img = Image.open(BytesIO(image_bytes))
-        query_vector = v_model.encode(img).tolist()
+        query_vector = get_image_embedding(image_bytes)
         res = supabase.rpc("match_bti_examples", {
             "query_embedding": query_vector,
             "match_threshold": 0.5,
@@ -1672,15 +1692,8 @@ def add_to_rag():
         img_response = requests.get(image_url, timeout=15)
         img_response.raise_for_status()
 
-        # 2. Открываем и подготавливаем изображение
-        img = Image.open(BytesIO(img_response.content))
-
-        # CLIP модель требует RGB (удаляем альфа-канал, если это PNG)
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
-
-        # 3. Генерируем вектор (эмбеддинг)
-        embedding = v_model.encode(img).tolist()
+        # 2. Генерируем эмбеддинг через OpenAI
+        embedding = get_image_embedding(img_response.content)
 
         # 4. Сохраняем новую запись в таблицу Supabase
         new_row = {
