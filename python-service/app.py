@@ -14,6 +14,8 @@ import re
 import base64
 from datetime import datetime
 from io import BytesIO
+from sentence_transformers import SentenceTransformer
+from supabase import create_client
 
 app = Flask(__name__)
 
@@ -22,6 +24,12 @@ app = Flask(__name__)
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "ВАШ_КЛЮЧ_ОТ_OPENAI")
 VALID_TOKEN = os.getenv("BTI_SERVICE_TOKEN", "bti_secure_token_2026")
 client = OpenAI(api_key=OPENAI_API_KEY)
+
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
+
+v_model = SentenceTransformer('clip-ViT-B-32')
 
 
 def region_to_polygon(region, width, height):
@@ -1510,14 +1518,38 @@ def apply_beacons():
 #     img.save(buffer, format="JPEG", quality=95)
 #     return base64.b64encode(buffer.getvalue()).decode('utf-8')
 
-def step_1_ocr_analysis(image_base64, target_area=None):
+def get_best_example(image_bytes):
+    """Находит ближайший пример БТИ в Supabase по векторному сходству (CLIP)."""
+    if not supabase:
+        return None
+    try:
+        img = Image.open(BytesIO(image_bytes))
+        query_vector = v_model.encode(img).tolist()
+        res = supabase.rpc("match_bti_examples", {
+            "query_embedding": query_vector,
+            "match_threshold": 0.5,
+            "match_count": 1
+        }).execute()
+        if res.data:
+            return res.data[0]['example_json']
+    except Exception:
+        pass
+    return None
+
+
+def step_1_ocr_analysis(image_base64, target_area=None, example_json=None):
     """Этап 1: Распознавание БТИ с ПРЯМЫМ ЗАПРЕТОМ на догадки"""
     headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
 
     area_hint = f"Общая площадь: {target_area} м2." if target_area else ""
 
+    rag_instruction = ""
+    if example_json:
+        rag_instruction = f"\nОРИЕНТИРУЙСЯ НА ЭТОТ ЭТАЛОН (RAG):\n{json.dumps(example_json, ensure_ascii=False)}\n"
+
     prompt = (
         "Ты — строгий технический контролер. Твоя первая и главная задача: определить, является ли фото ПЛАНОМ БТИ (чертежом).\n\n"
+        f"{rag_instruction}"
         "ПРИЗНАКИ ПЛАНА (должны быть все): \n"
         "1. Схематичные черные линии стен на светлом фоне.\n"
         "2. Технические цифры (площади, размеры).\n"
@@ -1590,10 +1622,15 @@ def bti_endpoint():
             return jsonify({"error": "No file uploaded"}), 400
 
         file = request.files['file']
-        image_base64 = base64.b64encode(file.read()).decode('utf-8')
+        file_bytes = file.read()
+
+        # RAG: ищем ближайший пример в базе знаний
+        knowledge_example = get_best_example(file_bytes)
+
+        image_base64 = base64.b64encode(file_bytes).decode('utf-8')
 
         # ВЫПОЛНЕНИЕ ЦЕПОЧКИ
-        raw_step1 = step_1_ocr_analysis(image_base64, target_area)
+        raw_step1 = step_1_ocr_analysis(image_base64, target_area, knowledge_example)
         step1_data = json.loads(raw_step1)
 
         if not step1_data.get('is_plan', True):
