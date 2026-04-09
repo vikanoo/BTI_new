@@ -832,7 +832,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "Bearer SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "Content-Type",
@@ -1091,7 +1091,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "Bearer SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "Content-Type",
@@ -1315,7 +1315,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "Bearer SUPABASE_API_KEY_PLACEHOLDER"
             }
           ]
         },
@@ -1466,11 +1466,11 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "Bearer SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "apikey",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "Content-Type",
@@ -1621,11 +1621,11 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "Bearer SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "apikey",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "SUPABASE_API_KEY_PLACEHOLDER"
             }
           ]
         },
@@ -1926,11 +1926,11 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "Bearer SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "apikey",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "Content-Type",
@@ -2075,11 +2075,11 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "Bearer SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "apikey",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "Content-Type",
@@ -2139,11 +2139,11 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "Bearer SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "apikey",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "Content-Type",
@@ -2281,7 +2281,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "Bearer SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "Content-Type",
@@ -2501,11 +2501,11 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "Bearer SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "apikey",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "Content-Type",
@@ -2599,11 +2599,11 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "Bearer SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "apikey",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "Content-Type",
@@ -2697,11 +2697,11 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "Bearer SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "apikey",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "Content-Type",
@@ -3778,7 +3778,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "Bearer SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "Content-Type",
@@ -4481,7 +4481,7 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "Bearer SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "Content-Type",
@@ -5357,7 +5357,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.telegram.org/bot8622133852:AAH2D0OFqVBIgTfeiNVJBIT-4G2EiJz8LCc/sendMessage",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN_PLACEHOLDER/sendMessage",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{\n{\n  chat_id: $json.chat_id,\n  text: \"Выберите комнату и отправьте ее реальное фото согласно инструкции\",\n  parse_mode: \"HTML\",\n  reply_markup: {\n    inline_keyboard: $json.inline_keyboard\n  }\n}\n}}",
@@ -7238,7 +7238,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.telegram.org/bot8622133852:AAH2D0OFqVBIgTfeiNVJBIT-4G2EiJz8LCc/sendMessage",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN_PLACEHOLDER/sendMessage",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{\n{\n  chat_id: $json.chat_id,\n  text: \"Выберите комнату и отправьте ее реальное фото согласно инструкции\",\n  parse_mode: \"HTML\",\n  reply_markup: {\n    inline_keyboard: $json.inline_keyboard\n  }\n}\n}}",
@@ -7488,7 +7488,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.telegram.org/bot8622133852:AAH2D0OFqVBIgTfeiNVJBIT-4G2EiJz8LCc/sendMessage",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN_PLACEHOLDER/sendMessage",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{\n{\n  chat_id: $json.chat_id,\n  text: \"Выберите комнату и отправьте ее реальное фото согласно инструкции\",\n  parse_mode: \"HTML\",\n  reply_markup: {\n    inline_keyboard: $json.inline_keyboard\n  }\n}\n}}",
@@ -7896,7 +7896,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.telegram.org/bot8622133852:AAH2D0OFqVBIgTfeiNVJBIT-4G2EiJz8LCc/sendMessage",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN_PLACEHOLDER/sendMessage",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{\n{\n  chat_id: $json.chat_id,\n  text: \"Выберите комнату и отправьте ее реальное фото согласно инструкции. \",\n  parse_mode: \"HTML\",\n  reply_markup: {\n    inline_keyboard: $json.inline_keyboard\n  }\n}\n}}",
@@ -8924,11 +8924,11 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "=Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "=Bearer SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "apikey",
-              "value": "=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "=SUPABASE_API_KEY_PLACEHOLDER"
             }
           ]
         },
@@ -9236,11 +9236,11 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "Bearer SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "apikey",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "Content-Type",
@@ -9302,11 +9302,11 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "Bearer SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "apikey",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "Content-Type",
@@ -9366,11 +9366,11 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "Bearer SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "apikey",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "Content-Type",
@@ -9406,11 +9406,11 @@
           "parameters": [
             {
               "name": "Authorization",
-              "value": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "Bearer SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "apikey",
-              "value": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBobmpkeXV3dHNxcXRleXFldGdtIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3MzE4NTMzNCwiZXhwIjoyMDg4NzYxMzM0fQ.aOYPvYxbJTUzMtOAEAPSjbWVEiQvytU8iFa5miR5a8M"
+              "value": "SUPABASE_API_KEY_PLACEHOLDER"
             },
             {
               "name": "Content-Type",
@@ -10297,7 +10297,7 @@
     {
       "parameters": {
         "method": "POST",
-        "url": "https://api.telegram.org/bot8622133852:AAH2D0OFqVBIgTfeiNVJBIT-4G2EiJz8LCc/sendMessage",
+        "url": "https://api.telegram.org/botTELEGRAM_BOT_TOKEN_PLACEHOLDER/sendMessage",
         "sendBody": true,
         "specifyBody": "json",
         "jsonBody": "={{\n{\n  chat_id: $json.chat_id,\n  text: \"Фото принято. Выберите другую комнату и отправьте ее реальное фото согласно инструкции. \",\n  parse_mode: \"HTML\",\n  reply_markup: {\n    inline_keyboard: $json.inline_keyboard\n  }\n}\n}}",
