@@ -1678,27 +1678,38 @@ def bti_endpoint():
 @app.route('/add-to-rag', methods=['POST'])
 def add_to_rag():
     data = request.json
-    if not data:
-        return jsonify({"error": "No JSON data provided"}), 400
-
     image_url = data.get('image_url')
-    confirmed_json = data.get('confirmed_json')
+    raw_response = data.get('confirmed_json')
 
-    if not image_url or not confirmed_json:
+    if not image_url or not raw_response:
         return jsonify({"error": "image_url and confirmed_json are required"}), 400
 
     try:
-        # 1. Скачиваем фото по ссылке
+        # 1. Приведение к формату РАГ
+        if isinstance(raw_response, list) and len(raw_response) > 0:
+            raw_data = raw_response[0]
+        else:
+            raw_data = raw_response
+
+        if raw_data.get("status") == "success":
+            rag_data = raw_data.get("analysis", {})
+        elif raw_data.get("status") == "error":
+            rag_data = {
+                "is_plan": False,
+                "error_message": raw_data.get("message", "Не является планом")
+            }
+        else:
+            rag_data = raw_data
+
+        # 2. Скачиваем фото и генерируем эмбеддинг через OpenAI
         img_response = requests.get(image_url, timeout=15)
         img_response.raise_for_status()
-
-        # 2. Генерируем эмбеддинг через OpenAI
         embedding = get_image_embedding(img_response.content)
 
-        # 4. Сохраняем новую запись в таблицу Supabase
+        # 3. Запись в базу
         new_row = {
             "image_path": image_url,
-            "example_json": confirmed_json,
+            "example_json": rag_data,
             "embedding": embedding
         }
 
@@ -1706,15 +1717,13 @@ def add_to_rag():
 
         return jsonify({
             "status": "success",
-            "message": "Данные успешно добавлены в базу знаний",
+            "added_format": rag_data,
             "id": result.data[0]['id'] if result.data else None
         }), 200
 
-    except requests.exceptions.RequestException as e:
-        return jsonify({"error": f"Ошибка скачивания фото: {str(e)}"}), 502
     except Exception as e:
-        print(f"ОШИБКА ПРИ ДОБАВЛЕНИИ В RAG: {str(e)}")
-        return jsonify({"error": f"Внутренняя ошибка сервера: {str(e)}"}), 500
+        print(f"RAG Error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 
 if __name__ == '__main__':
