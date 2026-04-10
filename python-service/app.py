@@ -12,6 +12,7 @@ import numpy as np
 import uuid
 import re
 import base64
+import time
 from datetime import datetime
 from io import BytesIO
 from supabase import create_client
@@ -1675,8 +1676,36 @@ def bti_endpoint():
         return jsonify({"error": str(e)}), 500
 
 
+def get_clip_512_embedding_hf(image_bytes, hf_token):
+    """Получает вектор 512 через Hugging Face API с переданным токеном"""
+    API_URL = "https://api-inference.huggingface.co/models/sentence-transformers/clip-ViT-B-32"
+    headers = {"Authorization": f"Bearer {hf_token}"}
+
+    for _ in range(3):
+        try:
+            response = requests.post(API_URL, headers=headers, data=image_bytes, timeout=20)
+            if response.status_code == 200:
+                return response.json()
+            elif response.status_code == 503:
+                print("Модель HF загружается, ждем 5 секунд...")
+                time.sleep(5)
+                continue
+            else:
+                raise Exception(f"Hugging Face API error: {response.text}")
+        except requests.exceptions.RequestException as e:
+            print(f"Ошибка запроса к HF: {e}")
+            time.sleep(2)
+
+    raise Exception("Hugging Face API недоступно или токен невалиден")
+
+
 @app.route('/add-to-rag', methods=['POST'])
 def add_to_rag():
+    hf_token_from_query = request.args.get('hf_token', '').strip()
+
+    if not hf_token_from_query:
+        return jsonify({"error": "Missing hf_token in query parameters"}), 400
+
     data = request.json
     image_url = data.get('image_url')
     raw_response = data.get('confirmed_json')
@@ -1701,12 +1730,14 @@ def add_to_rag():
         else:
             rag_data = raw_data
 
-        # 2. Скачиваем фото и генерируем эмбеддинг через OpenAI
+        # 2. Скачивание изображения
         img_response = requests.get(image_url, timeout=15)
         img_response.raise_for_status()
-        embedding = get_image_embedding(img_response.content)
 
-        # 3. Запись в базу
+        # 3. Генерация эмбеддинга 512 через HF API
+        embedding = get_clip_512_embedding_hf(img_response.content, hf_token_from_query)
+
+        # 4. Запись в Supabase
         new_row = {
             "image_path": image_url,
             "example_json": rag_data,
@@ -1718,7 +1749,8 @@ def add_to_rag():
         return jsonify({
             "status": "success",
             "added_format": rag_data,
-            "id": result.data[0]['id'] if result.data else None
+            "id": result.data[0]['id'] if result.data else None,
+            "dimensions": len(embedding)
         }), 200
 
     except Exception as e:
