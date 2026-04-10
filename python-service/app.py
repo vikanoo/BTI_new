@@ -23,6 +23,7 @@ app = Flask(__name__)
 # Рекомендуется задать переменную окружения: export OPENAI_API_KEY='ваш_ключ'
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "ВАШ_КЛЮЧ_ОТ_OPENAI")
 VALID_TOKEN = os.getenv("BTI_SERVICE_TOKEN", "bti_secure_token_2026")
+HUGGINGFACE_TOKEN = os.getenv("HUGGINGFACE_TOKEN", "")
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 SUPABASE_URL = os.getenv("SUPABASE_URL", "")
@@ -1701,10 +1702,8 @@ def get_clip_512_embedding_hf(image_bytes, hf_token):
 
 @app.route('/add-to-rag', methods=['POST'])
 def add_to_rag():
-    hf_token_from_query = request.args.get('hf_token', '').strip()
-
-    if not hf_token_from_query:
-        return jsonify({"error": "Missing hf_token in query parameters"}), 400
+    if not HUGGINGFACE_TOKEN:
+        return jsonify({"error": "HUGGINGFACE_TOKEN not configured"}), 500
 
     data = request.json
     image_url = data.get('image_url')
@@ -1735,7 +1734,7 @@ def add_to_rag():
         img_response.raise_for_status()
 
         # 3. Генерация эмбеддинга 512 через HF API
-        embedding = get_clip_512_embedding_hf(img_response.content, hf_token_from_query)
+        embedding = get_clip_512_embedding_hf(img_response.content, HUGGINGFACE_TOKEN)
 
         # 4. Запись в Supabase
         new_row = {
