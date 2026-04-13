@@ -4,6 +4,7 @@ import requests
 from openai import OpenAI
 from pdf2image import convert_from_bytes
 from PIL import Image, ImageDraw, ImageFont
+from huggingface_hub import InferenceClient
 import os
 import io
 import json
@@ -1678,24 +1679,34 @@ def bti_endpoint():
         return jsonify({"error": str(e)}), 500
 
 
-# 1. Загружаем модель локально при старте сервера
-# Она скачается один раз (~600MB) и будет работать очень быстро
-print("Загрузка локальной модели CLIP...")
-model = SentenceTransformer('clip-ViT-B-32')
+client = InferenceClient(token="HUGGINGFACE_TOKEN")
 
-def get_clip_512_embedding_local(image_bytes):
-    
+def get_clip_512_embedding_hf(image_bytes):
+    """
+    Получает эмбеддинг через официальный SDK. 
+    Это работает как внешний API, но стабильнее.
+    """
     try:
-        # Конвертируем байты в формат, который понимает нейросеть
-        image = Image.open(io.BytesIO(image_bytes))
+        # Используем метод feature_extraction
+        # Он сам подберет нужные заголовки и обработает бинарные данные
+        embedding = client.feature_extraction(
+            data=image_bytes,
+            model="sentence-transformers/clip-ViT-B-32"
+        )
         
-        # Генерируем эмбеддинг
-        embedding = model.encode(image)
-        
-        # Возвращаем как обычный список для Supabase
-        return embedding.tolist()
+        # Конвертируем результат в список (SDK может вернуть numpy-подобный объект)
+        if hasattr(embedding, "tolist"):
+            result = embedding.tolist()
+        else:
+            result = list(embedding)
+            
+        # CLIP иногда возвращает вложенный список [[...]], выравниваем его
+        if isinstance(result, list) and isinstance(result[0], list):
+            result = result[0]
+            
+        return result
     except Exception as e:
-        print(f"Ошибка при локальном расчете эмбеддинга: {e}")
+        print(f"Ошибка Hugging Face SDK: {e}")
         return None
 
 @app.route('/add-to-rag', methods=['POST'])
@@ -1728,11 +1739,11 @@ def add_to_rag():
         img_response = requests.get(image_url, timeout=15)
         img_response.raise_for_status()
 
-        # 3. Генерация эмбеддинга (ЛОКАЛЬНО)
-        embedding = get_clip_512_embedding_local(img_response.content)
+        # 3. Генерация эмбеддинга (Через легкий SDK)
+        embedding = get_clip_512_embedding_hf(img_response.content)
         
         if embedding is None:
-            return jsonify({"error": "Failed to generate embedding locally"}), 500
+            return jsonify({"error": "Hugging Face SDK failed to return embedding"}), 502
 
         # Проверка размерности (должно быть ровно 512)
         if len(embedding) != 512:
