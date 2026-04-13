@@ -1678,26 +1678,42 @@ def bti_endpoint():
 
 
 def get_clip_512_embedding_hf(image_bytes, hf_token):
-    """Получает вектор 512 через Hugging Face API с переданным токеном"""
+    """Получает вектор 512 через Hugging Face API"""
+    # Важно: используем актуальный endpoint
     API_URL = "https://api-inference.huggingface.co/models/sentence-transformers/clip-ViT-B-32"
-    headers = {"Authorization": f"Bearer {hf_token}"}
+    
+    headers = {
+        "Authorization": f"Bearer {hf_token}",
+        "Content-Type": "application/octet-stream" # Указываем, что шлем файл
+    }
 
-    for _ in range(3):
+    for attempt in range(5): # Увеличим количество попыток
         try:
-            response = requests.post(API_URL, headers=headers, data=image_bytes, timeout=20)
-            if response.status_code == 200:
-                return response.json()
-            elif response.status_code == 503:
-                print("Модель HF загружается, ждем 5 секунд...")
-                time.sleep(5)
+            response = requests.post(API_URL, headers=headers, data=image_bytes, timeout=30)
+            
+            # Если HF еще загружает модель
+            if response.status_code == 503:
+                wait_time = response.json().get("estimated_time", 5)
+                print(f"Модель загружается, ждем {wait_time} сек...")
+                time.sleep(wait_time)
                 continue
-            else:
-                raise Exception(f"Hugging Face API error: {response.text}")
+            
+            # Если всё успешно
+            if response.status_code == 200:
+                result = response.json()
+                # CLIP может возвращать список векторов, берем первый
+                if isinstance(result, list) and len(result) > 0:
+                    return result[0] if isinstance(result[0], list) else result
+                return result
+
+            # Если получили 410 или другую ошибку
+            raise Exception(f"HF API Error {response.status_code}: {response.text[:200]}")
+
         except requests.exceptions.RequestException as e:
-            print(f"Ошибка запроса к HF: {e}")
+            print(f"Попытка {attempt+1} не удалась: {e}")
             time.sleep(2)
 
-    raise Exception("Hugging Face API недоступно или токен невалиден")
+    raise Exception("Не удалось получить эмбеддинг после нескольких попыток")
 
 
 @app.route('/add-to-rag', methods=['POST'])
