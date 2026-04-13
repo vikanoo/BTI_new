@@ -1678,18 +1678,21 @@ def bti_endpoint():
         return jsonify({"error": str(e)}), 500
 
 
+# 1. Загружаем модель локально при старте сервера
+# Она скачается один раз (~600MB) и будет работать очень быстро
+print("Загрузка локальной модели CLIP...")
 model = SentenceTransformer('clip-ViT-B-32')
 
-def get_clip_512_embedding_hf(image_bytes, hf_token=None):
-    """Теперь считает эмбеддинг локально, игнорируя проблемы API"""
+def get_clip_512_embedding_local(image_bytes):
+    
     try:
-        # Конвертируем байты в изображение PIL
+        # Конвертируем байты в формат, который понимает нейросеть
         image = Image.open(io.BytesIO(image_bytes))
         
-        # Генерируем эмбеддинг (выдает 512 измерений для этой модели)
+        # Генерируем эмбеддинг
         embedding = model.encode(image)
         
-        # Конвертируем numpy array в обычный список для Supabase
+        # Возвращаем как обычный список для Supabase
         return embedding.tolist()
     except Exception as e:
         print(f"Ошибка при локальном расчете эмбеддинга: {e}")
@@ -1697,9 +1700,6 @@ def get_clip_512_embedding_hf(image_bytes, hf_token=None):
 
 @app.route('/add-to-rag', methods=['POST'])
 def add_to_rag():
-    if not HUGGINGFACE_TOKEN:
-        return jsonify({"error": "HUGGINGFACE_TOKEN not configured"}), 500
-
     data = request.json
     image_url = data.get('image_url')
     raw_response = data.get('confirmed_json')
@@ -1708,7 +1708,7 @@ def add_to_rag():
         return jsonify({"error": "image_url and confirmed_json are required"}), 400
 
     try:
-        # 1. Приведение к формату РАГ
+        # 1. Приведение входящих данных к формату RAG
         if isinstance(raw_response, list) and len(raw_response) > 0:
             raw_data = raw_response[0]
         else:
@@ -1724,28 +1724,20 @@ def add_to_rag():
         else:
             rag_data = raw_data
 
-        # 2. Скачивание изображения
+        # 2. Скачивание изображения по ссылке
         img_response = requests.get(image_url, timeout=15)
         img_response.raise_for_status()
 
-        # 3. Генерация эмбеддинга 512 через HF API
-        embedding = get_clip_512_embedding_hf(img_response.content, HUGGINGFACE_TOKEN)
+        # 3. Генерация эмбеддинга (ЛОКАЛЬНО)
+        embedding = get_clip_512_embedding_local(img_response.content)
         
         if embedding is None:
-            return jsonify({"error": "Hugging Face API failed to return embedding"}), 502
+            return jsonify({"error": "Failed to generate embedding locally"}), 500
 
-
-        # Проверяем размерность перед вставкой в Supabase
+        # Проверка размерности (должно быть ровно 512)
         if len(embedding) != 512:
-         # Если размерность не 512, база выдаст ошибку. Логируем это.
-            print(f"Критично: Получена размерность {len(embedding)}, а нужна 512!")
+            print(f"Ошибка размерности: {len(embedding)}")
             return jsonify({"error": f"Wrong embedding size: {len(embedding)}"}), 500
-
-        new_row = {
-            "image_path": image_url,
-            "example_json": rag_data,
-         "embedding": embedding
-        }
 
         # 4. Запись в Supabase
         new_row = {
