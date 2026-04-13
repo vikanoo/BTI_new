@@ -1,13 +1,6 @@
 FROM python:3.11-slim
 
-RUN apt-get update && apt-get install -y \
-    build-essential \
-    git \
-    libstdc++6 \
-    libglib2.0-0 \
-    libgl1 \
-    poppler-utils \
-    && rm -rf /var/lib/apt/lists/*
+RUN apt-get update && apt-get install -y poppler-utils && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
