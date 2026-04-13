@@ -14,6 +14,8 @@ import uuid
 import re
 import base64
 import time
+import torch
+import clip
 from datetime import datetime
 from io import BytesIO
 from supabase import create_client
@@ -1678,13 +1680,31 @@ def bti_endpoint():
         return jsonify({"error": str(e)}), 500
 
 
-# Инициализируем клиент один раз (токен берем из ваших переменных)
-client = InferenceClient(token=HUGGINGFACE_TOKEN)
+# 1. Загружаем модель при старте (она скачает ~350МБ один раз)
+# Модель ViT-B/32 дает те самые 512 измерений
+device = "cpu"
+model, preprocess = clip.load("ViT-B/32", device=device)
 
-def get_clip_512_embedding_hf(image_bytes):
-    # ВРЕМЕННАЯ ЗАГЛУШКА: просто создаем 512 нулей
-    print("DEBUG: Используем тестовый вектор (512 нулей)")
-    return [0.0] * 512
+def get_clip_512_embedding_local(image_bytes):
+    try:
+        # Превращаем байты в картинку PIL
+        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
+        
+        # Подготавливаем картинку для нейросети
+        image_input = preprocess(image).unsqueeze(0).to(device)
+        
+        # Отключаем градиенты для экономии памяти и скорости
+        with torch.no_grad():
+            image_features = model.encode_image(image_input)
+            
+        # Нормализуем вектор (важно для поиска в базе)
+        image_features /= image_features.norm(dim=-1, keepdim=True)
+        
+        # Превращаем в обычный список
+        return image_features.cpu().numpy().flatten().tolist()
+    except Exception as e:
+        print(f"Ошибка локального CLIP: {e}")
+        return None
 
 @app.route('/add-to-rag', methods=['POST'])
 def add_to_rag():
@@ -1696,36 +1716,23 @@ def add_to_rag():
         return jsonify({"error": "image_url and confirmed_json are required"}), 400
 
     try:
-        # 1. Приведение входящих данных к формату RAG
+        # Обработка JSON (твой старый код)
         if isinstance(raw_response, list) and len(raw_response) > 0:
             raw_data = raw_response[0]
         else:
             raw_data = raw_response
 
-        if raw_data.get("status") == "success":
-            rag_data = raw_data.get("analysis", {})
-        elif raw_data.get("status") == "error":
-            rag_data = {
-                "is_plan": False,
-                "error_message": raw_data.get("message", "Не является планом")
-            }
-        else:
-            rag_data = raw_data
+        rag_data = raw_data.get("analysis", raw_data)
 
-        # 2. Скачивание изображения по ссылке
+        # 2. Скачивание изображения
         img_response = requests.get(image_url, timeout=15)
         img_response.raise_for_status()
 
-        # 3. Генерация эмбеддинга (Через легкий SDK)
-        embedding = get_clip_512_embedding_hf(img_response.content)
+        # 3. ГЕНЕРАЦИЯ ЭМБЕДДИНГА (ЛОКАЛЬНО)
+        embedding = get_clip_512_embedding_local(img_response.content)
         
         if embedding is None:
-            return jsonify({"error": "Hugging Face SDK failed to return embedding"}), 502
-
-        # Проверка размерности (должно быть ровно 512)
-        if len(embedding) != 512:
-            print(f"Ошибка размерности: {len(embedding)}")
-            return jsonify({"error": f"Wrong embedding size: {len(embedding)}"}), 500
+            return jsonify({"error": "Local CLIP failed to process image"}), 500
 
         # 4. Запись в Supabase
         new_row = {
@@ -1734,11 +1741,11 @@ def add_to_rag():
             "embedding": embedding
         }
 
+        # Вызов supabase (убедись, что переменная supabase инициализирована выше)
         result = supabase.table("bti_examples").insert(new_row).execute()
 
         return jsonify({
-            "status": "success",
-            "added_format": rag_data,
+            "status": "success", 
             "id": result.data[0]['id'] if result.data else None,
             "dimensions": len(embedding)
         }), 200
