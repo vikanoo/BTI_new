@@ -1,4 +1,5 @@
 from flask import Flask, request, send_file, jsonify
+from sentence_transformers import SentenceTransformer
 import requests
 from openai import OpenAI
 from pdf2image import convert_from_bytes
@@ -1677,49 +1678,22 @@ def bti_endpoint():
         return jsonify({"error": str(e)}), 500
 
 
-def get_clip_512_embedding_hf(image_bytes, hf_token):
-    # Используем более стабильный эндпоинт
-    API_URL = "https://api-inference.huggingface.co/models/openai/clip-vit-base-patch32"
-    
-    headers = {
-        "Authorization": f"Bearer {hf_token}",
-        "Content-Type": "application/octet-stream",
-        "X-Wait-For-Model": "true"  # Важно: заставляет API загрузить модель в память
-    }
+model = SentenceTransformer('clip-ViT-B-32')
 
-    for attempt in range(3):
-        try:
-            print(f"Попытка {attempt + 1}: отправка запроса в HF...")
-            response = requests.post(API_URL, headers=headers, data=image_bytes, timeout=40)
-            
-            # Проверяем, не пришел ли HTML вместо JSON
-            if "text/html" in response.headers.get("Content-Type", ""):
-                print("Ошибка: Сервер вернул HTML. Проверьте правильность ссылки или токена.")
-                continue
-
-            if response.status_code == 200:
-                result = response.json()
-                # CLIP от OpenAI возвращает список векторов. Извлекаем нужный:
-                if isinstance(result, list):
-                    # Если результат [[...]], берем первый элемент
-                    return result[0] if isinstance(result[0], list) else result
-                return result
-            
-            elif response.status_code == 503:
-                data = response.json()
-                wait_time = data.get("estimated_time", 15)
-                print(f"Модель прогревается, ждем {wait_time} сек...")
-                time.sleep(wait_time)
-            else:
-                print(f"HF Error {response.status_code}: {response.text}")
-                time.sleep(2)
-                
-        except Exception as e:
-            print(f"Ошибка при запросе: {e}")
-            time.sleep(2)
-
-    return None
-
+def get_clip_512_embedding_hf(image_bytes, hf_token=None):
+    """Теперь считает эмбеддинг локально, игнорируя проблемы API"""
+    try:
+        # Конвертируем байты в изображение PIL
+        image = Image.open(io.BytesIO(image_bytes))
+        
+        # Генерируем эмбеддинг (выдает 512 измерений для этой модели)
+        embedding = model.encode(image)
+        
+        # Конвертируем numpy array в обычный список для Supabase
+        return embedding.tolist()
+    except Exception as e:
+        print(f"Ошибка при локальном расчете эмбеддинга: {e}")
+        return None
 
 @app.route('/add-to-rag', methods=['POST'])
 def add_to_rag():
