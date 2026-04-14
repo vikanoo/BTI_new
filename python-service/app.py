@@ -1695,15 +1695,14 @@ def add_to_rag():
 
         rag_data = raw_data.get("analysis", raw_data)
 
-        # 2. Скачивание изображения
-        img_response = requests.get(image_url, timeout=15)
-        img_response.raise_for_status()
-
-        # 3. ГЕНЕРАЦИЯ ЭМБЕДДИНГА (описание через gpt-4o-mini + text-embedding-3-small)
-        embedding = get_image_embedding(img_response.content)
-
-        if embedding is None:
-            return jsonify({"error": "Failed to generate image embedding"}), 500
+        # 3. ГЕНЕРАЦИЯ ЭМБЕДДИНГА из текста confirmed_json (уже содержит описание плана)
+        text_to_embed = json.dumps(rag_data, ensure_ascii=False)
+        embed_resp = client.embeddings.create(
+            model="text-embedding-3-small",
+            input=text_to_embed,
+            dimensions=512
+        )
+        embedding = embed_resp.data[0].embedding
 
         # 4. Запись в Supabase
         new_row = {
