@@ -1,6 +1,5 @@
 from flask import Flask, request, send_file, jsonify
 import requests
-from openai import OpenAI
 from pdf2image import convert_from_bytes
 from PIL import Image, ImageDraw, ImageFont
 import os
@@ -15,20 +14,11 @@ import base64
 import time
 from datetime import datetime
 from io import BytesIO
-from supabase import create_client
 
 app = Flask(__name__)
 
-# Инициализация клиента OpenAI
-# Рекомендуется задать переменную окружения: export OPENAI_API_KEY='ваш_ключ'
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "ВАШ_КЛЮЧ_ОТ_OPENAI")
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
 VALID_TOKEN = os.getenv("BTI_SERVICE_TOKEN", "bti_secure_token_2026")
-HUGGINGFACE_TOKEN = os.getenv("HUGGINGFACE_TOKEN", "")
-client = OpenAI(api_key=OPENAI_API_KEY)
-
-SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
-supabase = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
 
 
 
@@ -1518,140 +1508,6 @@ def apply_beacons():
 #     img.save(buffer, format="JPEG", quality=95)
 #     return base64.b64encode(buffer.getvalue()).decode('utf-8')
 
-def get_image_embedding(image_bytes):
-    """Генерирует текстовый эмбеддинг изображения через OpenAI (описание + embed)."""
-    img = Image.open(BytesIO(image_bytes))
-    if img.mode != 'RGB':
-        img = img.convert('RGB')
-    buf = BytesIO()
-    img.save(buf, format='JPEG')
-    img_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-
-    desc_resp = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": [
-            {"type": "text", "text": "Опиши кратко структуру плана БТИ: список помещений, их площади и расположение."},
-            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}", "detail": "low"}}
-        ]}],
-        max_tokens=300
-    )
-    description = desc_resp.choices[0].message.content
-
-    embed_resp = client.embeddings.create(model="text-embedding-3-small", input=description, dimensions=512)
-    return embed_resp.data[0].embedding
-
-
-def get_best_example(image_bytes):
-    """Находит ближайший пример БТИ в Supabase по векторному сходству."""
-    if not supabase:
-        return None
-    try:
-        query_vector = get_image_embedding(image_bytes)
-        res = supabase.rpc("match_bti_examples", {
-            "query_embedding": query_vector,
-            "match_threshold": 0.5,
-            "match_count": 1
-        }).execute()
-        if res.data:
-            return res.data[0]['example_json']
-    except Exception:
-        pass
-    return None
-
-
-def step_1_ocr_analysis(image_base64, target_area=None):
-    headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
-
-    prompt = (
-        "Ты — эксперт-картограф. Твоя задача: отличить ПЛОЩАДИ комнат от РАЗМЕРОВ стен.\n"
-        f"ОЖИДАЕМАЯ СУММА: {target_area if target_area else 'не указана'}\n\n"
-        "ПРАВИЛА ОТБОРА ЦИФР:\n"
-        "1. ПРИОРИТЕТ (Площади): Это цифры, которые находятся В ЦЕНТРЕ помещений. Обычно они:\n"
-        "   - Написаны под чертой (дробь).\n"
-        "   - Обведены в кружок или эллипс.\n"
-        "   - Написаны более крупным/жирным шрифтом в центре комнаты.\n"
-        "2. ИГНОР (Размеры стен): Это цифры, которые стоят ВДОЛЬ линий стен или в узких простенках. "
-        "Обычно их много, они мелкие и часто повторяются (например, 3.20, 1.45). НЕ БЕРИ ИХ.\n"
-        "3. ПРОВЕРКА КОНТЕКСТА: Если ты взял цифру 10.74, посмотри — есть ли рядом с ней границы комнаты, "
-        "которые визуально соответствуют такой площади? Если цифра стоит у одной линии — это длина стены.\n\n"
-        "ВЫДАЙ JSON:\n"
-        "{ 'is_plan': true, 'rooms': [{ 'id': 'номер или null', 'name': 'Помещение', 'area': float }] }"
-    )
-
-    payload = {
-        "model": "gpt-4o-mini",
-        "messages": [{"role": "user", "content": [
-            {"type": "text", "text": prompt},
-            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}", "detail": "high"}}
-        ]}],
-        "response_format": {"type": "json_object"}
-    }
-    res = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
-    return res.json()['choices'][0]['message']['content']
-
-
-def critic_verification(image_base64, step1_json, target_area=None):
-    """Дополнительный этап: Критик-контролер перепроверяет работу OCR."""
-    headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
-
-    prompt = (
-        "Ты — контролер качества OCR. Твое задание: отсеять 'мусорные' цифры.\n"
-        f"ПОЛУЧЕННЫЙ СПИСОК: {step1_json}\n"
-        f"ЦЕЛЬ: Сумма должна быть около {target_area}\n\n"
-        "АЛГОРИТМ ПРОВЕРКИ:\n"
-        "1. Сложи все площади из списка. Если сумма БОЛЬШЕ цели на 20%+, найди в списке самые подозрительные числа. "
-        "Подозрительное число — это то, которое на плане стоит вплотную к линии стены (это длина стены, а не площадь).\n"
-        "2. УДАЛИ из списка все записи, которые не являются площадями комнат.\n"
-        "3. Если на плане есть ТАБЛИЦА (экспликация) — приоритет данным из таблицы!\n\n"
-        "ОТВЕТЬ В JSON:\n"
-        "{\n"
-        "  'corrected_json': { ... },\n"
-        "  'critic_comment': 'что исправлено или почему всё верно'\n"
-        "}"
-    )
-
-    payload = {
-        "model": "gpt-4o-mini",
-        "messages": [{"role": "user", "content": [
-            {"type": "text", "text": prompt},
-            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{image_base64}", "detail": "high"}}
-        ]}],
-        "response_format": {"type": "json_object"}
-    }
-    res = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
-    return res.json()['choices'][0]['message']['content']
-
-
-def clean_room_name(name):
-    if not name:
-        return "Помещение"
-    cleaned = re.sub(r'[^а-яА-ЯёЁ0-9\s.-]', '', name)
-    cleaned = cleaned.strip()
-    return cleaned if cleaned else "Помещение"
-
-
-def refine_analysis(data, target_area):
-    rooms = data.get('rooms', [])
-    if not rooms:
-        return data
-
-    # 1. Удаляем дубликаты по площади
-    unique_rooms = []
-    seen_areas = set()
-    for r in rooms:
-        if r['area'] not in seen_areas:
-            unique_rooms.append(r)
-            seen_areas.add(r['area'])
-
-    # 2. Если сумма всё ещё намного больше цели — убираем записи < 1.0 м2 (вероятный мусор от OCR)
-    ai_sum = sum(r['area'] for r in unique_rooms)
-    if target_area and ai_sum > target_area * 1.1:
-        unique_rooms = [r for r in unique_rooms if r['area'] > 1.0]
-
-    data['rooms'] = unique_rooms
-    return data
-
-
 def step_2_photo_planning(ocr_json):
     """Этап 2: Строгое дополнение существующего JSON точками съемки"""
     headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
@@ -1686,104 +1542,75 @@ def bti_endpoint():
 
     # 2. Обработка входной площади
     raw_area = request.args.get('total_area', '')
-    target_area = None
+    provided_area = None
     if raw_area and str(raw_area).lower().strip() not in ['none', 'null', 'undefined', '']:
         try:
-            target_area = float(str(raw_area).replace(',', '.'))
+            provided_area = float(str(raw_area).replace(',', '.'))
         except Exception:
-            target_area = None
+            provided_area = None
 
     try:
         if 'file' not in request.files:
             return jsonify({"error": "No file uploaded"}), 400
 
         file = request.files['file']
-        file_bytes = file.read()
-        image_base64 = base64.b64encode(file_bytes).decode('utf-8')
+        image_data = file.read()
+        base64_image = base64.b64encode(image_data).decode('utf-8')
 
-        # ШАГ 1: Первичное распознавание
-        raw_step1 = step_1_ocr_analysis(image_base64, target_area)
-        step1_data = json.loads(raw_step1)
+        # ШАГ 1: Распознавание плана (один вызов GPT)
+        prompt = (
+            "Анализируй изображение. Это план БТИ (технический паспорт квартиры)?\n"
+            "Если нет — верни JSON: {\"is_bti\": false, \"error\": \"На фото не план БТИ\"}.\n"
+            "Если да — извлеки все площади комнат и общую площадь, если она указана текстом.\n"
+            "Верни JSON: {\"is_bti\": true, \"total_area\": float_or_null, \"rooms\": {\"название\": площадь_float}}"
+        )
 
-        if not step1_data.get('is_plan', True):
-            return jsonify({"status": "error", "message": step1_data.get('error_message')}), 200
+        headers = {"Authorization": f"Bearer {OPENAI_API_KEY}", "Content-Type": "application/json"}
+        payload = {
+            "model": "gpt-4o-mini",
+            "messages": [{"role": "user", "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base64_image}"}}
+            ]}],
+            "response_format": {"type": "json_object"}
+        }
+        res = requests.post("https://api.openai.com/v1/chat/completions", headers=headers, json=payload)
+        result = json.loads(res.json()['choices'][0]['message']['content'])
 
-        # ШАГ 2: КРИТИКА (Self-Correction)
-        raw_critic = critic_verification(image_base64, raw_step1, target_area)
-        critic_data = json.loads(raw_critic)
+        if not result.get('is_bti'):
+            return jsonify({"status": "error", "message": result.get('error')}), 200
 
-        # Чистим имена комнат от мусора
-        corrected = critic_data.get('corrected_json', {})
-        for room in corrected.get('rooms', []):
-            room['name'] = clean_room_name(room.get('name', ''))
+        # ШАГ 2: Математическая верификация
+        math_status = None
+        extracted_total = result.get('total_area')
+        rooms_dict = result.get('rooms', {})
 
-        # Удаляем дубликаты и подозрительно мелкие записи
-        corrected = refine_analysis(corrected, target_area)
-        verified_step1 = json.dumps(corrected)
+        if provided_area is not None:
+            sum_rooms = sum(rooms_dict.values())
+            if abs(sum_rooms - provided_area) < 0.1:
+                math_status = "Match"
+            elif sum_rooms > provided_area:
+                math_status = f"Warning: Sum of rooms ({round(sum_rooms, 2)}) exceeds provided area ({provided_area})"
+            else:
+                math_status = "Validated with margins"
 
-        # ШАГ 3: Планирование точек съемки (уже на основе проверенных данных)
-        raw_step2 = step_2_photo_planning(verified_step1)
+        # ШАГ 3: Планирование точек съемки
+        rooms_list = [
+            {"id": str(i + 1), "name": name, "area": area}
+            for i, (name, area) in enumerate(rooms_dict.items())
+        ]
+        raw_step2 = step_2_photo_planning(json.dumps({"rooms": rooms_list}))
         final_data = json.loads(raw_step2)
 
-        # Финальная математика для ответа пользователю
-        ai_sum = sum([float(r.get('area') or 0) for r in final_data.get('rooms', [])])
-
         return jsonify({
             "status": "success",
+            "is_bti": True,
+            "total_area_found": extracted_total,
             "analysis": final_data,
-            "critic_note": critic_data.get('critic_comment'),
-            "verification": {
-                "calculated_sum": round(ai_sum, 2),
-                "expected": target_area,
-                "difference": round(abs(ai_sum - (target_area or 0)), 2)
-            }
+            "math_validation": math_status
         }), 200
 
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route('/add-to-rag', methods=['POST'])
-def add_to_rag():
-    data = request.json
-    image_url = data.get('image_url')
-    raw_response = data.get('confirmed_json')
-
-    if not image_url or not raw_response:
-        return jsonify({"error": "image_url and confirmed_json are required"}), 400
-
-    try:
-        if isinstance(raw_response, list) and len(raw_response) > 0:
-            raw_data = raw_response[0]
-        else:
-            raw_data = raw_response
-
-        rag_data = raw_data.get("analysis", raw_data)
-
-        text_to_embed = json.dumps(rag_data, ensure_ascii=False)
-        embed_resp = client.embeddings.create(
-            model="text-embedding-3-small",
-            input=text_to_embed,
-            dimensions=512
-        )
-        embedding = embed_resp.data[0].embedding
-
-        new_row = {
-            "image_path": image_url,
-            "example_json": rag_data,
-            "embedding": embedding
-        }
-
-        result = supabase.table("bti_examples").insert(new_row).execute()
-
-        return jsonify({
-            "status": "success",
-            "id": result.data[0]['id'] if result.data else None,
-            "dimensions": len(embedding)
-        }), 200
-
-    except Exception as e:
-        print(f"RAG Error: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
