@@ -15,7 +15,7 @@ import base64
 import time
 from datetime import datetime
 from io import BytesIO
-# from supabase import create_client
+from supabase import create_client
 
 app = Flask(__name__)
 
@@ -26,9 +26,9 @@ VALID_TOKEN = os.getenv("BTI_SERVICE_TOKEN", "bti_secure_token_2026")
 HUGGINGFACE_TOKEN = os.getenv("HUGGINGFACE_TOKEN", "")
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-# SUPABASE_URL = os.getenv("SUPABASE_URL", "")
-# SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
-# supabase = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
+SUPABASE_URL = os.getenv("SUPABASE_URL", "")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
+supabase = create_client(SUPABASE_URL, SUPABASE_KEY) if SUPABASE_URL and SUPABASE_KEY else None
 
 
 
@@ -1518,45 +1518,45 @@ def apply_beacons():
 #     img.save(buffer, format="JPEG", quality=95)
 #     return base64.b64encode(buffer.getvalue()).decode('utf-8')
 
-# def get_image_embedding(image_bytes):
-#     """Генерирует текстовый эмбеддинг изображения через OpenAI (описание + embed)."""
-#     img = Image.open(BytesIO(image_bytes))
-#     if img.mode != 'RGB':
-#         img = img.convert('RGB')
-#     buf = BytesIO()
-#     img.save(buf, format='JPEG')
-#     img_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
-#
-#     desc_resp = client.chat.completions.create(
-#         model="gpt-4o-mini",
-#         messages=[{"role": "user", "content": [
-#             {"type": "text", "text": "Опиши кратко структуру плана БТИ: список помещений, их площади и расположение."},
-#             {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}", "detail": "low"}}
-#         ]}],
-#         max_tokens=300
-#     )
-#     description = desc_resp.choices[0].message.content
-#
-#     embed_resp = client.embeddings.create(model="text-embedding-3-small", input=description, dimensions=512)
-#     return embed_resp.data[0].embedding
+def get_image_embedding(image_bytes):
+    """Генерирует текстовый эмбеддинг изображения через OpenAI (описание + embed)."""
+    img = Image.open(BytesIO(image_bytes))
+    if img.mode != 'RGB':
+        img = img.convert('RGB')
+    buf = BytesIO()
+    img.save(buf, format='JPEG')
+    img_b64 = base64.b64encode(buf.getvalue()).decode('utf-8')
+
+    desc_resp = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": [
+            {"type": "text", "text": "Опиши кратко структуру плана БТИ: список помещений, их площади и расположение."},
+            {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{img_b64}", "detail": "low"}}
+        ]}],
+        max_tokens=300
+    )
+    description = desc_resp.choices[0].message.content
+
+    embed_resp = client.embeddings.create(model="text-embedding-3-small", input=description, dimensions=512)
+    return embed_resp.data[0].embedding
 
 
-# def get_best_example(image_bytes):
-#     """Находит ближайший пример БТИ в Supabase по векторному сходству."""
-#     if not supabase:
-#         return None
-#     try:
-#         query_vector = get_image_embedding(image_bytes)
-#         res = supabase.rpc("match_bti_examples", {
-#             "query_embedding": query_vector,
-#             "match_threshold": 0.5,
-#             "match_count": 1
-#         }).execute()
-#         if res.data:
-#             return res.data[0]['example_json']
-#     except Exception:
-#         pass
-#     return None
+def get_best_example(image_bytes):
+    """Находит ближайший пример БТИ в Supabase по векторному сходству."""
+    if not supabase:
+        return None
+    try:
+        query_vector = get_image_embedding(image_bytes)
+        res = supabase.rpc("match_bti_examples", {
+            "query_embedding": query_vector,
+            "match_threshold": 0.5,
+            "match_count": 1
+        }).execute()
+        if res.data:
+            return res.data[0]['example_json']
+    except Exception:
+        pass
+    return None
 
 
 def step_1_ocr_analysis(image_base64, target_area=None):
@@ -1692,48 +1692,48 @@ def bti_endpoint():
         return jsonify({"error": str(e)}), 500
 
 
-# @app.route('/add-to-rag', methods=['POST'])
-# def add_to_rag():
-#     data = request.json
-#     image_url = data.get('image_url')
-#     raw_response = data.get('confirmed_json')
-#
-#     if not image_url or not raw_response:
-#         return jsonify({"error": "image_url and confirmed_json are required"}), 400
-#
-#     try:
-#         if isinstance(raw_response, list) and len(raw_response) > 0:
-#             raw_data = raw_response[0]
-#         else:
-#             raw_data = raw_response
-#
-#         rag_data = raw_data.get("analysis", raw_data)
-#
-#         text_to_embed = json.dumps(rag_data, ensure_ascii=False)
-#         embed_resp = client.embeddings.create(
-#             model="text-embedding-3-small",
-#             input=text_to_embed,
-#             dimensions=512
-#         )
-#         embedding = embed_resp.data[0].embedding
-#
-#         new_row = {
-#             "image_path": image_url,
-#             "example_json": rag_data,
-#             "embedding": embedding
-#         }
-#
-#         result = supabase.table("bti_examples").insert(new_row).execute()
-#
-#         return jsonify({
-#             "status": "success",
-#             "id": result.data[0]['id'] if result.data else None,
-#             "dimensions": len(embedding)
-#         }), 200
-#
-#     except Exception as e:
-#         print(f"RAG Error: {str(e)}")
-#         return jsonify({"error": str(e)}), 500
+@app.route('/add-to-rag', methods=['POST'])
+def add_to_rag():
+    data = request.json
+    image_url = data.get('image_url')
+    raw_response = data.get('confirmed_json')
+
+    if not image_url or not raw_response:
+        return jsonify({"error": "image_url and confirmed_json are required"}), 400
+
+    try:
+        if isinstance(raw_response, list) and len(raw_response) > 0:
+            raw_data = raw_response[0]
+        else:
+            raw_data = raw_response
+
+        rag_data = raw_data.get("analysis", raw_data)
+
+        text_to_embed = json.dumps(rag_data, ensure_ascii=False)
+        embed_resp = client.embeddings.create(
+            model="text-embedding-3-small",
+            input=text_to_embed,
+            dimensions=512
+        )
+        embedding = embed_resp.data[0].embedding
+
+        new_row = {
+            "image_path": image_url,
+            "example_json": rag_data,
+            "embedding": embedding
+        }
+
+        result = supabase.table("bti_examples").insert(new_row).execute()
+
+        return jsonify({
+            "status": "success",
+            "id": result.data[0]['id'] if result.data else None,
+            "dimensions": len(embedding)
+        }), 200
+
+    except Exception as e:
+        print(f"RAG Error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
