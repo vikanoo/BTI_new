@@ -1621,13 +1621,16 @@ def analyze_bti():
         return jsonify({"error": True, "message": "Файл не передан"}), 400
 
     file = request.files['file']
-    # Важно: если шлете через FormData в Postman, проверьте где лежит total_area
     total_area_param = request.args.get('total_area', type=float)
+    plan_url = request.args.get('plan_url', '').strip()
 
     try:
-        # 1. Хешируем
-        photo_hash = get_image_hash(file)
-        print(f"[analyze-bti] hash={photo_hash}")
+        # 1. Хешируем: если передан URL — хешируем его (стабильно), иначе — байты файла
+        if plan_url:
+            photo_hash = hashlib.md5(plan_url.encode()).hexdigest()
+        else:
+            photo_hash = get_image_hash(file)
+        print(f"[analyze-bti] hash={photo_hash} (source={'url' if plan_url else 'file'})")
 
         # 2. Ищем в основной таблице
         existing = supabase.table("bti_knowledge_base").select("id, is_bti").eq("photo_hash", photo_hash).execute()
