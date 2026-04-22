@@ -1805,6 +1805,7 @@ def analyze_bti():
         )
 
         gpt_result = json.loads(response.choices[0].message.content)
+        gpt_result["_debug_hash"] = photo_hash
 
         if not gpt_result.get("error"):
             effective_total = total_area_param or gpt_result.get("total_area")
