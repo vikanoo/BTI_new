@@ -1592,6 +1592,23 @@ def encode_image(file_storage):
     file_storage.seek(0)
     return base64.b64encode(content).decode('utf-8')
 
+def build_plan_description(data):
+    """Builds a human-readable text summary of the BTI plan for injection into GPT prompts."""
+    if not data or not data.get("rooms"):
+        return ""
+    lines = ["План БТИ содержит следующие помещения:"]
+    for room in data.get("rooms", []):
+        area_str = f"{room['area']} м²" if room.get("area") else "площадь не указана"
+        lines.append(f"- {room.get('name', 'помещение')} (id={room.get('id')}): {area_str}")
+    if data.get("total_area"):
+        lines.append(f"Общая площадь квартиры: {data['total_area']} м²")
+    if data.get("math_analysis"):
+        m = data["math_analysis"]
+        if m.get("diff") is not None:
+            lines.append(f"Расчётная сумма площадей помещений: {m['calculated_sum']} м² (расхождение с общей: {m['diff']} м²)")
+    return "\n".join(lines)
+
+
 def calculate_math(data, total_area_param):
     """Добавляет математический анализ площадей к результату"""
     # Защита: если data пришла как строка, превращаем в словарь
@@ -1600,16 +1617,23 @@ def calculate_math(data, total_area_param):
         
     if not data or not data.get("rooms"):
         return data
-        
+
     sum_rooms_area = sum(room.get('area', 0) for room in data.get('rooms', []) if room.get('area'))
-    
-    # Считаем разницу только если передана площадь
-    data['math_analysis'] = {
-        "input_total_area": total_area_param,
-        "calculated_sum": round(sum_rooms_area, 2),
-        "diff": round(total_area_param - sum_rooms_area, 2),
-        "is_match": abs(total_area_param - sum_rooms_area) < 0.1
-    }
+
+    if not total_area_param:
+        data['math_analysis'] = {
+            "input_total_area": None,
+            "calculated_sum": round(sum_rooms_area, 2),
+            "diff": None,
+            "is_match": None
+        }
+    else:
+        data['math_analysis'] = {
+            "input_total_area": total_area_param,
+            "calculated_sum": round(sum_rooms_area, 2),
+            "diff": round(total_area_param - sum_rooms_area, 2),
+            "is_match": abs(total_area_param - sum_rooms_area) < 0.1
+        }
     return data
 
 # --- ЭНДПОИНТ ---
@@ -1646,39 +1670,72 @@ def analyze_bti():
                 result_data = json.loads(raw_json) if isinstance(raw_json, str) else raw_json
                 
                 result_data["error"] = False
-                if total_area_param is not None:
-                    result_data = calculate_math(result_data, total_area_param)
-                
+                result_data = calculate_math(result_data, total_area_param)
+                result_data["plan_description"] = build_plan_description(result_data)
                 return jsonify(result_data)
 
         # 3. Если в базе нет — идем в GPT
         base_64_image = encode_image(file)
 
         prompt = """
-        Проанализируй план БТИ. 
+        Проанализируй план БТИ.
+
         1. Если на фото НЕ план БТИ, верни JSON: {"error": true, "message": "На фото не БТИ"}.
-        
-        2. ПРАВИЛА ИМЕНОВАНИЯ (name):
-           - Найди текст названия на самом плане (например, "Кухня", "Жилая"). 
+
+        2. ПРАВИЛА ИДЕНТИФИКАЦИИ (id):
+           - Каждому помещению присвой уникальный числовой id, начиная с 1.
+           - Если на плане есть своя нумерация — используй её как id (число).
+           - Если нумерации нет — нумеруй сам: 1, 2, 3...
+
+        3. ПРАВИЛА ИМЕНОВАНИЯ И ПЛОЩАДИ (name, area):
+           - Найди текст названия на самом плане (например, "Кухня", "Жилая").
            - Если названия НЕТ (только цифра/id), пиши: "помещение [id]".
            - В конце любого названия ОБЯЗАТЕЛЬНО добавь в скобках площадь из плана.
-           Примеры: "Кухня (10.5)", "помещение 3 (4.2)".
-        
-        3. ПРАВИЛА ГЕНЕРАЦИИ ТОЧЕК СЪЕМКИ (camera_points):
-   - КОЛИЧЕСТВО: Минимум 2, максимум 4 точки на помещение. 
-   - СЛОЖНЫЕ ПОМЕЩЕНИЯ: Если помещение имеет Г-образную форму или более 4 углов — ОБЯЗАТЕЛЬНО 3-4 точки.
-   
-   - ЛОКАЦИЯ (location): Пиши максимально точно относительно объектов. 
-     Примеры: "Справа от окна", "В дверном проеме", "В дальнем левом углу от входа", "Напротив душевой кабины".
-   
-   - ОБЪЕКТ СЪЕМКИ (view): Распиши подробно, что должно попасть в кадр.
-     * Для санузла: "Крупный план смесителя, раковины и боковой части ванны", "Общий вид помещения с захватом унитаза и полотенцесушителя".
-     * Для кухни: "Кухонный фронт: плита, мойка и рабочая поверхность", "Обеденная зона и вид на окно".
-     * Для комнат: "Панорамный вид от окна на межкомнатную дверь и радиатор отопления", "Угол комнаты с захватом двух смежных стен для оценки состояния отделки".
+             Примеры: "Кухня (10.5)", "помещение 3 (4.2)".
+           - Если площадь помещения на плане не читается (размыта, перекрыта, отсутствует) —
+             ставь area: null. НЕ угадывай и НЕ вычисляй площадь самостоятельно.
 
-   - ЗАПРЕТЫ: 
-     1. Если в помещении нет окна (санузел/коридор) — упоминание окна ЗАПРЕЩЕНО. 
-     2. Запрещено писать общие фразы типа "Стык стен". Пиши, что именно на этих стенах (дверь, розетки, оборудование).
+        4. ОБЩАЯ ПЛОЩАДЬ КВАРТИРЫ (total_area):
+           - Найди на плане итоговую площадь квартиры — она обычно указана в штампе,
+             подписи внизу или отдельной строкой (например, "Общая площадь: 54.5 м²").
+           - Если нашёл — запиши в поле total_area (число).
+           - Если не нашёл — ставь total_area: null.
+
+        5. ПРАВИЛА ГЕНЕРАЦИИ ТОЧЕК СЪЕМКИ (camera_points):
+           - КОЛИЧЕСТВО: Минимум 2, максимум 4 точки на помещение.
+           - СЛОЖНЫЕ ПОМЕЩЕНИЯ: Если помещение имеет Г-образную форму или более 4 углов — ОБЯЗАТЕЛЬНО 3-4 точки.
+           - ЛОКАЦИЯ (location): Пиши максимально точно относительно объектов.
+             Примеры: "Справа от окна", "В дверном проеме", "В дальнем левом углу от входа", "Напротив душевой кабины".
+           - ОБЪЕКТ СЪЕМКИ (view): Распиши подробно, что должно попасть в кадр.
+             * Для санузла: "Крупный план смесителя, раковины и боковой части ванны", "Общий вид помещения с захватом унитаза и полотенцесушителя".
+             * Для кухни: "Кухонный фронт: плита, мойка и рабочая поверхность", "Обеденная зона и вид на окно".
+             * Для комнат: "Панорамный вид от окна на межкомнатную дверь и радиатор отопления", "Угол комнаты с захватом двух смежных стен для оценки состояния отделки".
+           - КООРДИНАТЫ ФОТОГРАФА (x_percent, y_percent):
+             Укажи, где фотограф стоит на плане при съёмке этой точки.
+             * x_percent: от 0.0 (левый край плана) до 1.0 (правый край)
+             * y_percent: от 0.0 (верхний край плана) до 1.0 (нижний край)
+             Координаты — это позиция ФОТОГРАФА, а не объекта съёмки.
+           - ЗАПРЕТЫ:
+             1. Если в помещении нет окна (санузел/коридор) — упоминание окна ЗАПРЕЩЕНО.
+             2. Запрещено писать общие фразы типа "Стык стен". Пиши, что именно на этих стенах (дверь, розетки, оборудование).
+
+        СТРУКТУРА ОТВЕТА (строго соблюдай все поля):
+        {
+          "error": false,
+          "is_bti": true,
+          "total_area": 54.5,
+          "rooms": [
+            {
+              "id": 1,
+              "name": "Кухня (10.5)",
+              "area": 10.5,
+              "camera_points": [
+                {"point_id": 1, "location": "...", "view": "...", "x_percent": 0.25, "y_percent": 0.60},
+                {"point_id": 2, "location": "...", "view": "...", "x_percent": 0.40, "y_percent": 0.55}
+              ]
+            }
+          ]
+        }
         """
 
         response = client.chat.completions.create(
@@ -1697,8 +1754,9 @@ def analyze_bti():
 
         gpt_result = json.loads(response.choices[0].message.content)
 
-        if not gpt_result.get("error") and total_area_param is not None:
+        if not gpt_result.get("error"):
             gpt_result = calculate_math(gpt_result, total_area_param)
+            gpt_result["plan_description"] = build_plan_description(gpt_result)
 
         return jsonify(gpt_result)
 
@@ -1707,5 +1765,59 @@ def analyze_bti():
         print(f"Error details: {str(e)}") 
         return jsonify({"error": True, "message": f"Ошибка сервера: {str(e)}"}), 500
     
+@app.route('/get-rag-chunks', methods=['POST'])
+def get_rag_chunks():
+    """
+    Returns the most relevant RAG chunks for a given query using cosine similarity.
+    Input:  JSON { "query": "...", "top_n": 7 }
+    Output: JSON { "chunks": [...], "total_fetched": N, "returned": M }
+    """
+    try:
+        data = request.get_json()
+        if not data or not data.get("query"):
+            return jsonify({"error": "query is required"}), 400
+
+        query = data["query"]
+        top_n = int(data.get("top_n", 7))
+
+        embedding_resp = client.embeddings.create(
+            model="text-embedding-3-small",
+            input=query
+        )
+        query_vector = np.array(embedding_resp.data[0].embedding)
+
+        chunks_resp = supabase.table("embeddings").select("id,content,embedding,metadata").execute()
+        if not chunks_resp.data:
+            return jsonify({"chunks": [], "total_fetched": 0, "returned": 0})
+
+        results = []
+        for chunk in chunks_resp.data:
+            chunk_vector = np.array(chunk["embedding"])
+            norm_q = np.linalg.norm(query_vector)
+            norm_c = np.linalg.norm(chunk_vector)
+            if norm_q == 0 or norm_c == 0:
+                similarity = 0.0
+            else:
+                similarity = float(np.dot(query_vector, chunk_vector) / (norm_q * norm_c))
+            results.append({
+                "id": chunk["id"],
+                "content": chunk["content"],
+                "metadata": chunk.get("metadata", {}),
+                "similarity": similarity
+            })
+
+        results.sort(key=lambda x: x["similarity"], reverse=True)
+        top_chunks = results[:top_n]
+
+        return jsonify({
+            "chunks": top_chunks,
+            "total_fetched": len(results),
+            "returned": len(top_chunks)
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000)
