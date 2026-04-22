@@ -1649,7 +1649,8 @@ def analyze_bti():
                 has_camera_points = rooms_list and rooms_list[0].get("camera_points")
                 if has_camera_points:
                     result_data["error"] = False
-                    result_data = calculate_math(result_data, total_area_param)
+                    effective_total = total_area_param or result_data.get("total_area")
+                    result_data = calculate_math(result_data, effective_total)
                     result_data["plan_description"] = build_plan_description(result_data)
                     return jsonify(result_data)
 
@@ -1714,7 +1715,8 @@ def analyze_bti():
                     result_data["error"] = False
                     result_data["is_bti"] = True
                     result_data.pop("is_plan", None)
-                    result_data = calculate_math(result_data, total_area_param)
+                    effective_total = total_area_param or result_data.get("total_area")
+                    result_data = calculate_math(result_data, effective_total)
                     result_data["plan_description"] = build_plan_description(result_data)
                     return jsonify(result_data)
 
@@ -1800,7 +1802,8 @@ def analyze_bti():
         gpt_result = json.loads(response.choices[0].message.content)
 
         if not gpt_result.get("error"):
-            gpt_result = calculate_math(gpt_result, total_area_param)
+            effective_total = total_area_param or gpt_result.get("total_area")
+            gpt_result = calculate_math(gpt_result, effective_total)
             gpt_result["plan_description"] = build_plan_description(gpt_result)
 
         return jsonify(gpt_result)
