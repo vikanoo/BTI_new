@@ -1687,7 +1687,7 @@ def analyze_bti():
                 {
                     "role": "user",
                     "content": [
-                        {"type": "text", "text": full_prompt},
+                        {"type": "text", "text": prompt},
                         {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base_64_image}"}}
                     ],
                 }
