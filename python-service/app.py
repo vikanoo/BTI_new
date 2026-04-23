@@ -1868,10 +1868,6 @@ def analyze_bti():
             effective_total = total_area_param or gpt_result.get("total_area")
             gpt_result = calculate_math(gpt_result, effective_total)
             gpt_result["plan_description"] = build_plan_description(gpt_result)
-            plan_meta = gpt_result.get("plan_metadata", {})
-            if plan_meta:
-                meta_description = build_description_from_metadata(plan_meta)
-                save_plan_to_db(photo_hash, plan_url, meta_description, True)
 
         return jsonify(gpt_result)
 
@@ -1880,6 +1876,37 @@ def analyze_bti():
         print(f"Error details: {str(e)}") 
         return jsonify({"error": True, "message": f"Ошибка сервера: {str(e)}"}), 500
     
+@app.route('/save-plan', methods=['POST'])
+def save_plan():
+    """
+    Saves confirmed BTI plan analysis to bti_knowledge_base.
+    Called after user confirms the analysis is correct.
+    Input:  JSON { "photo_hash": "...", "plan_url": "...", "plan_metadata": {...} }
+    Output: JSON { "ok": true } or { "error": "..." }
+    """
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "JSON body required"}), 400
+
+        photo_hash = data.get("photo_hash", "").strip()
+        plan_url = data.get("plan_url", "").strip()
+        plan_meta = data.get("plan_metadata", {})
+
+        if not photo_hash:
+            return jsonify({"error": "photo_hash is required"}), 400
+        if not plan_meta:
+            return jsonify({"error": "plan_metadata is required"}), 400
+
+        description = build_description_from_metadata(plan_meta)
+        save_plan_to_db(photo_hash, plan_url, description, True)
+        return jsonify({"ok": True, "description": description})
+
+    except Exception as e:
+        print(f"[save-plan] error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @lru_cache(maxsize=256)
 def _embed_query(query: str) -> tuple:
     """Cached embedding for a query string. Returns a tuple (hashable for lru_cache)."""
