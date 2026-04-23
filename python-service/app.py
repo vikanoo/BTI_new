@@ -1871,21 +1871,21 @@ def analyze_bti():
 {
   "error": false,
   "is_bti": true,
-  "total_area": 54.5,
+  "total_area": <число с плана или null если не найдена>,
   "plan_metadata": {
-    "plan_type": "скан",
-    "areas_format": "цифра под чертой по центру помещения",
-    "ids_format": "число в кружочке",
-    "names_format": "текст внутри контура",
-    "total_area_location": "в штампе снизу справа",
-    "stamp_present": true,
-    "reading_tips": "Площади записаны дробью — числитель над чертой является площадью помещения."
+    "plan_type": "<скан|фото|рукописный>",
+    "areas_format": "<описание того что реально видишь>",
+    "ids_format": "<описание того что реально видишь>",
+    "names_format": "<описание того что реально видишь>",
+    "total_area_location": "<где найдена или 'не найдена'>",
+    "stamp_present": <true только если штамп виден на изображении>,
+    "reading_tips": "<реально наблюдаемые особенности>"
   },
   "rooms": [
     {
       "id": 1,
-      "name": "Кухня (10.5)",
-      "area": 10.5,
+      "name": "<название с плана или 'Помещение 1'> (<площадь>)",
+      "area": <число с плана или null>,
       "camera_points": [
         {"point_id": 1, "location": "...", "view": "...", "x_percent": 0.25, "y_percent": 0.60},
         {"point_id": 2, "location": "...", "view": "...", "x_percent": 0.40, "y_percent": 0.55}
