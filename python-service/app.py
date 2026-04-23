@@ -1588,35 +1588,6 @@ def build_description_from_metadata(meta: dict) -> str:
     return " ".join(parts)
 
 
-def generate_readability_assessment(plan_meta: dict) -> tuple:
-    """Generates readability_score (0-100) and rejection_reason from plan_metadata using GPT."""
-    prompt = f"""На основе метаданных плана БТИ оцени читаемость плана для автоматического анализа.
-
-Метаданные:
-{json.dumps(plan_meta, ensure_ascii=False, indent=2)}
-
-Верни JSON:
-{{
-  "readability_score": <целое число 0-100>,
-  "rejection_reason": "<одно предложение о главной проблеме читаемости, или null если проблем нет>"
-}}
-
-Шкала:
-- 80-100: план отлично читается, все данные чёткие
-- 60-79: план читается хорошо, незначительные помехи
-- 40-59: есть затруднения (цифры касаются линий, текст мелкий, план фото а не скан)
-- 20-39: многое не читается
-- 0-19: план практически нечитаем"""
-
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[{"role": "user", "content": prompt}],
-        response_format={"type": "json_object"}
-    )
-    result = json.loads(response.choices[0].message.content)
-    return result.get("readability_score"), result.get("rejection_reason")
-
-
 def save_plan_to_db(photo_hash: str, description: str, is_bti: bool,
                     plan_url: str = None, plan_metadata: dict = None,
                     readability_score: int = None, rejection_reason: str = None) -> str:
@@ -1894,6 +1865,15 @@ def analyze_bti():
    {"error": true, "message": "На фото только фрагмент плана", "plan_metadata": {"plan_type": "скан", "areas_format": "не определено", "ids_format": "не определено", "names_format": "не определено", "total_area_location": "не найдена", "stamp_present": false, "reading_tips": "Виден только фрагмент плана."}}
 Только если изображение — полноценный читаемый план БТИ, продолжай анализ.
 
+ОЦЕНКА ЧИТАЕМОСТИ (readability_score, rejection_reason) — заполняй для всех успешных планов:
+- readability_score: целое число 0-100, где 100 = идеально читаемый скан
+  * 80-100: все данные чёткие, цифры не касаются линий, текст читается без труда
+  * 60-79: план читается хорошо, незначительные помехи (лёгкое размытие, мелкий текст)
+  * 40-59: есть затруднения — цифры касаются линий стен, план сфотографирован а не отсканирован, часть данных трудночитаема
+  * 20-39: многое не читается — сильное размытие, тени, искажения
+  * 0-19: план практически нечитаем
+- rejection_reason: одно предложение о главной причине снижения читаемости. null если план отличного качества (score >= 80).
+
 Отвечай строго в JSON."""
 
         user_prompt = """Проанализируй это изображение. Сначала проверь качество и тип — если есть проблема, верни error. Иначе верни полный анализ плана БТИ в формате:
@@ -1904,6 +1884,8 @@ def analyze_bti():
   "error": false,
   "is_bti": true,
   "total_area": null,
+  "readability_score": <0-100>,
+  "rejection_reason": "<причина снижения читаемости или null>",
   "plan_metadata": {
     "plan_type": "<скан|фото|рукописный>",
     "areas_format": "<описание того что реально видишь>",
@@ -1979,6 +1961,8 @@ def save_plan():
         plan_url = data.get("plan_url", "").strip() or None
         plan_meta = data.get("plan_metadata", {})
         rooms = data.get("rooms", [])
+        readability_score = data.get("readability_score")
+        rejection_reason = data.get("rejection_reason")
 
         if not photo_hash:
             return jsonify({"error": "photo_hash is required"}), 400
@@ -1986,7 +1970,6 @@ def save_plan():
             return jsonify({"error": "plan_metadata is required"}), 400
 
         description = build_description_from_metadata(plan_meta)
-        readability_score, rejection_reason = generate_readability_assessment(plan_meta)
         bti_id = save_plan_to_db(
             photo_hash, description, True,
             plan_url=plan_url,
