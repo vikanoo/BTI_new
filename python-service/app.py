@@ -1592,15 +1592,16 @@ def save_plan_to_db(photo_hash: str, plan_url: str, description: str, is_bti: bo
     """Embeds description and upserts plan record in bti_knowledge_base. Returns the record id."""
     embedding_resp = client.embeddings.create(model="text-embedding-3-small", input=description)
     embedding = embedding_resp.data[0].embedding
-    resp = supabase.table("bti_knowledge_base").upsert({
+    supabase.table("bti_knowledge_base").upsert({
         "photo_hash": photo_hash,
         "plan_url": plan_url,
         "description": description,
         "embedding": embedding,
         "is_bti": is_bti
-    }, on_conflict="photo_hash").select("id").execute()
+    }, on_conflict="photo_hash").execute()
+    resp = supabase.table("bti_knowledge_base").select("id").eq("photo_hash", photo_hash).execute()
     if not resp.data:
-        raise RuntimeError(f"upsert bti_knowledge_base returned no data for hash={photo_hash}")
+        raise RuntimeError(f"could not fetch id for hash={photo_hash}")
     record_id = resp.data[0]["id"]
     print(f"[save_plan_to_db] saved hash={photo_hash} id={record_id}")
     return record_id
