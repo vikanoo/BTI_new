@@ -1588,24 +1588,22 @@ def build_description_from_metadata(meta: dict) -> str:
     return " ".join(parts)
 
 
-def save_plan_to_db(photo_hash: str, plan_url: str, description: str, is_bti: bool) -> str | None:
+def save_plan_to_db(photo_hash: str, plan_url: str, description: str, is_bti: bool) -> str:
     """Embeds description and upserts plan record in bti_knowledge_base. Returns the record id."""
-    try:
-        embedding_resp = client.embeddings.create(model="text-embedding-3-small", input=description)
-        embedding = embedding_resp.data[0].embedding
-        resp = supabase.table("bti_knowledge_base").upsert({
-            "photo_hash": photo_hash,
-            "plan_url": plan_url,
-            "description": description,
-            "embedding": embedding,
-            "is_bti": is_bti
-        }, on_conflict="photo_hash").select("id").execute()
-        record_id = resp.data[0]["id"] if resp.data else None
-        print(f"[save_plan_to_db] saved hash={photo_hash} id={record_id}")
-        return record_id
-    except Exception as e:
-        print(f"[save_plan_to_db] error: {e}")
-        return None
+    embedding_resp = client.embeddings.create(model="text-embedding-3-small", input=description)
+    embedding = embedding_resp.data[0].embedding
+    resp = supabase.table("bti_knowledge_base").upsert({
+        "photo_hash": photo_hash,
+        "plan_url": plan_url,
+        "description": description,
+        "embedding": embedding,
+        "is_bti": is_bti
+    }, on_conflict="photo_hash").select("id").execute()
+    if not resp.data:
+        raise RuntimeError(f"upsert bti_knowledge_base returned no data for hash={photo_hash}")
+    record_id = resp.data[0]["id"]
+    print(f"[save_plan_to_db] saved hash={photo_hash} id={record_id}")
+    return record_id
 
 
 def _extract_area_from_name(name: str) -> float | None:
@@ -1635,15 +1633,12 @@ def _transform_rooms_for_storage(rooms: list) -> dict:
 
 def save_rooms_to_db(bti_id: str, rooms: list):
     """Saves transformed rooms JSON to bti_rooms table linked to bti_knowledge_base by bti_id."""
-    try:
-        room_details = _transform_rooms_for_storage(rooms)
-        supabase.table("bti_rooms").insert({
-            "bti_id": bti_id,
-            "room_details_json": room_details
-        }).execute()
-        print(f"[save_rooms_to_db] saved {len(rooms)} rooms for bti_id={bti_id}")
-    except Exception as e:
-        print(f"[save_rooms_to_db] error: {e}")
+    room_details = _transform_rooms_for_storage(rooms)
+    supabase.table("bti_rooms").insert({
+        "bti_id": bti_id,
+        "room_details_json": room_details
+    }).execute()
+    print(f"[save_rooms_to_db] saved {len(rooms)} rooms for bti_id={bti_id}")
 
 
 def build_plan_description(data):
