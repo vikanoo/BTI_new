@@ -1599,7 +1599,7 @@ def save_plan_to_db(photo_hash: str, plan_url: str, description: str, is_bti: bo
             "description": description,
             "embedding": embedding,
             "is_bti": is_bti
-        }, on_conflict="photo_hash").execute()
+        }, on_conflict="photo_hash").select("id").execute()
         record_id = resp.data[0]["id"] if resp.data else None
         print(f"[save_plan_to_db] saved hash={photo_hash} id={record_id}")
         return record_id
