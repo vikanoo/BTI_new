@@ -1689,6 +1689,75 @@ def calculate_math(data, total_area_param):
         }
     return data
 
+def generate_camera_points(base_64_image: str, rooms: list) -> list:
+    """Generates camera_points for each room using a dedicated GPT-4o-mini call."""
+    rooms_for_prompt = [
+        {"id": r["id"], "name": r.get("name", f"Помещение {r['id']}"), "area": r.get("area")}
+        for r in rooms
+    ]
+
+    cp_system = """Ты — специалист по расстановке точек съёмки на планах БТИ.
+Тебе дан план квартиры и список помещений. Расставь точки съёмки для фотофиксации каждого помещения.
+
+КОЛИЧЕСТВО ТОЧЕК (строго по площади и форме):
+- до 6 м² → ровно 2 точки
+- 6–20 м², простая прямоугольная форма → ровно 2 точки
+- 6–20 м², сложная форма (Г-образная, более 4 углов) → 3 точки
+- более 20 м² → 3-4 точки
+
+РАЗНООБРАЗИЕ (обязательно):
+- Каждая точка смотрит на ДРУГУЮ стену или зону помещения
+- Запрещено: две точки направлены в одну сторону или покрывают одну стену
+- Точки максимально разнесены по помещению (разные x_percent, y_percent)
+
+ЛОКАЦИЯ (location): чёткая команда без вводных слов и неуверенных формулировок.
+Примеры: "В правом дальнем углу от входа", "У левого окна", "В дверном проеме".
+Запрещены: "скорее всего", "возможно", "вероятно", "предположительно".
+
+ВИД (view): конкретная стена, угол или архитектурный элемент который попадёт в кадр.
+Примеры: "Левая стена с окном и прилегающий угол", "Стена напротив входа", "Дверной проем и стена за ним".
+Запрещены общие фразы: "Общий вид", "Вид на помещение", "Центральная часть", "Вид на пространство".
+Запрещена мебель и техника — на плане их нет.
+Сантехника (раковина, унитаз, ванна) допустима если обозначена на плане.
+
+КООРДИНАТЫ: x_percent (0=левый, 1=правый), y_percent (0=верхний, 1=нижний) — позиция ФОТОГРАФА на плане.
+
+Отвечай строго в JSON."""
+
+    cp_user = f"""Расставь точки съёмки для каждого помещения плана:
+
+{json.dumps(rooms_for_prompt, ensure_ascii=False, indent=2)}
+
+Верни JSON:
+{{
+  "rooms": [
+    {{
+      "id": 1,
+      "camera_points": [
+        {{"point_id": 1, "location": "...", "view": "...", "x_percent": 0.25, "y_percent": 0.60}}
+      ]
+    }}
+  ]
+}}"""
+
+    cp_response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": cp_system},
+            {"role": "user", "content": [
+                {"type": "text", "text": cp_user},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base_64_image}"}}
+            ]}
+        ],
+        response_format={"type": "json_object"}
+    )
+    cp_result = json.loads(cp_response.choices[0].message.content)
+    cp_by_id = {r["id"]: r.get("camera_points", []) for r in cp_result.get("rooms", [])}
+    for room in rooms:
+        room["camera_points"] = cp_by_id.get(room["id"], [])
+    return rooms
+
+
 # --- ЭНДПОИНТ ---
 
 @app.route('/analyze-bti', methods=['POST'])
@@ -1744,56 +1813,7 @@ def analyze_bti():
                     for i, room in enumerate(rooms_list):
                         if "id" not in room:
                             room["id"] = i + 1
-
-                    rooms_for_prompt = [
-                        {"id": r["id"], "name": r.get("name", f"Помещение {r['id']}"), "area": r.get("area")}
-                        for r in rooms_list
-                    ]
-
-                    cp_system = """Ты — специалист по расстановке точек съёмки на планах БТИ.
-Тебе дан план и список помещений с известными именами и площадями.
-Расставь точки съёмки для каждого помещения, используя изображение плана для определения координат.
-
-ПРАВИЛА:
-- Минимум 2, максимум 4 точки на помещение. Г-образные — 3-4 точки.
-- location: позиция фотографа относительно объектов ("Справа от окна", "В дверном проеме").
-- view: что конкретно должно попасть в кадр.
-- x_percent/y_percent: координаты ФОТОГРАФА на плане (0.0=левый/верхний, 1.0=правый/нижний).
-- Нет окна в помещении — окно не упоминать.
-Отвечай строго в JSON."""
-
-                    cp_user = f"""Расставь точки съёмки для этих помещений плана БТИ:
-
-{json.dumps(rooms_for_prompt, ensure_ascii=False, indent=2)}
-
-Верни JSON:
-{{
-  "rooms": [
-    {{
-      "id": 1,
-      "camera_points": [
-        {{"point_id": 1, "location": "...", "view": "...", "x_percent": 0.25, "y_percent": 0.60}}
-      ]
-    }}
-  ]
-}}"""
-
-                    cp_response = client.chat.completions.create(
-                        model="gpt-4o-mini",
-                        messages=[
-                            {"role": "system", "content": cp_system},
-                            {"role": "user", "content": [
-                                {"type": "text", "text": cp_user},
-                                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base_64_image}"}}
-                            ]}
-                        ],
-                        response_format={"type": "json_object"}
-                    )
-                    cp_result = json.loads(cp_response.choices[0].message.content)
-                    cp_by_id = {r["id"]: r.get("camera_points", []) for r in cp_result.get("rooms", [])}
-
-                    for room in rooms_list:
-                        room["camera_points"] = cp_by_id.get(room["id"], [])
+                    rooms_list = generate_camera_points(base_64_image, rooms_list)
 
                     result_data["rooms"] = rooms_list
                     result_data["error"] = False
@@ -1830,15 +1850,6 @@ def analyze_bti():
 - Найди на плане итоговую площадь квартиры — это отдельная подпись вне контуров помещений: в штампе, строке "Общая площадь", таблице внизу листа.
 - ЗАПРЕЩЕНО: брать площадь отдельного помещения как total_area. Площади внутри контуров помещений — это НЕ общая площадь.
 - Если итоговая площадь квартиры явно не указана на видимой части плана — total_area: null.
-
-ПРАВИЛА ГЕНЕРАЦИИ ТОЧЕК СЪЕМКИ (camera_points):
-- КОЛИЧЕСТВО: простое прямоугольное помещение (4 угла, стандартная форма) — ровно 2 точки. Г-образная форма или более 4 углов — 3-4 точки. Никогда не превышай 4.
-- ЛОКАЦИЯ (location): позиция относительно архитектурных элементов плана: стен, дверей, окон. Примеры: "В дальнем левом углу от входа", "У окна", "В дверном проеме".
-- ОБЪЕКТ СЪЕМКИ (view): только то что видно на БТИ-плане как архитектура — стены, двери, окна, сантехника если обозначена. ЗАПРЕЩЕНО упоминать мебель, кухонный гарнитур, технику — на БТИ-плане их нет.
-- КООРДИНАТЫ ФОТОГРАФА (x_percent, y_percent): позиция фотографа на плане.
-  * x_percent: 0.0 (левый край) до 1.0 (правый край)
-  * y_percent: 0.0 (верхний край) до 1.0 (нижний край)
-- ЗАПРЕТЫ: нет окна в помещении → окно не упоминать. Запрещены общие фразы типа "Стык стен", "Вид на пространство", "Вид на комнату". Запрещены вводные слова: "скорее всего", "возможно", "вероятно", "предположительно" — пиши location как чёткую команду.
 
 ПЛАН-МЕТАДАТА (plan_metadata) — описывай ТОЛЬКО то, что РЕАЛЬНО ВИДИШЬ на изображении. Не угадывай, не предполагай, не переносить паттерны с других планов.
 - plan_type: "скан" | "фото" | "рукописный"
@@ -1901,11 +1912,7 @@ def analyze_bti():
     {
       "id": 1,
       "name": "<название с плана или 'Помещение 1'> (<площадь>)",
-      "area": <число с плана или null>,
-      "camera_points": [
-        {"point_id": 1, "location": "...", "view": "...", "x_percent": 0.25, "y_percent": 0.60},
-        {"point_id": 2, "location": "...", "view": "...", "x_percent": 0.40, "y_percent": 0.55}
-      ]
+      "area": <число с плана или null>
     }
   ]
 }"""
@@ -1929,6 +1936,7 @@ def analyze_bti():
         gpt_result["_debug_hash"] = photo_hash
 
         if not gpt_result.get("error"):
+            gpt_result["rooms"] = generate_camera_points(base_64_image, gpt_result.get("rooms", []))
             effective_total = total_area_param
             gpt_result = calculate_math(gpt_result, effective_total)
             gpt_result["plan_description"] = build_plan_description(gpt_result)
