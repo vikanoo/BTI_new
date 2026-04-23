@@ -1876,6 +1876,52 @@ def analyze_bti():
         print(f"Error details: {str(e)}") 
         return jsonify({"error": True, "message": f"Ошибка сервера: {str(e)}"}), 500
     
+@app.route('/update-plan-descriptions', methods=['POST'])
+def update_plan_descriptions():
+    """
+    Regenerates description + embedding for all records in bti_knowledge_base
+    using the stored plan_metadata column.
+    If plan_metadata is null → description = "Не план БТИ".
+    Output: JSON { "updated": N, "skipped": M, "errors": [...] }
+    """
+    try:
+        rows = supabase.table("bti_knowledge_base").select("id, photo_hash, plan_metadata").execute()
+        if not rows.data:
+            return jsonify({"updated": 0, "skipped": 0, "errors": []})
+
+        updated = 0
+        skipped = 0
+        errors = []
+
+        for row in rows.data:
+            row_id = row["id"]
+            plan_meta = row.get("plan_metadata")
+
+            if not plan_meta:
+                description = "Не план БТИ"
+            else:
+                description = build_description_from_metadata(plan_meta)
+
+            try:
+                embedding_resp = client.embeddings.create(model="text-embedding-3-small", input=description)
+                embedding = embedding_resp.data[0].embedding
+                supabase.table("bti_knowledge_base").update({
+                    "description": description,
+                    "embedding": embedding
+                }).eq("id", row_id).execute()
+                print(f"[update-plan-descriptions] updated id={row_id}")
+                updated += 1
+            except Exception as e:
+                print(f"[update-plan-descriptions] error on id={row_id}: {e}")
+                errors.append({"id": row_id, "error": str(e)})
+
+        return jsonify({"updated": updated, "skipped": skipped, "errors": errors})
+
+    except Exception as e:
+        print(f"[update-plan-descriptions] fatal error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route('/save-plan', methods=['POST'])
 def save_plan():
     """
