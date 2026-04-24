@@ -1570,20 +1570,18 @@ def encode_image(file_storage):
     return base64.b64encode(content).decode('utf-8')
 
 
-def _enhance_for_ocr(image_bytes: bytes, target_width: int = 2500) -> str:
-    """Upscales and sharpens image so GPT reads small text more accurately.
-    Only upscales — never downscales originals wider than target_width.
+def _enhance_for_ocr(image_bytes: bytes) -> str:
+    """Enhances contrast and sharpness so GPT reads small text more accurately.
+    Does not resize — preserves spatial structure so GPT doesn't lose rooms.
     Returns base64-encoded JPEG string.
     """
+    from PIL import ImageEnhance
     img = Image.open(io.BytesIO(image_bytes))
     if img.mode not in ("RGB", "L"):
         img = img.convert("RGB")
 
-    w, h = img.size
-    if w < target_width:
-        scale = target_width / w
-        img = img.resize((target_width, int(h * scale)), Image.LANCZOS)
-        img = img.filter(ImageFilter.UnsharpMask(radius=1.5, percent=150, threshold=3))
+    img = ImageEnhance.Contrast(img).enhance(1.5)
+    img = ImageEnhance.Sharpness(img).enhance(2.0)
 
     buf = io.BytesIO()
     img.save(buf, format="JPEG", quality=92)
