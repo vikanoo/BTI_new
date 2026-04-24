@@ -3,7 +3,7 @@ import requests
 from openai import OpenAI
 from functools import lru_cache
 from pdf2image import convert_from_bytes
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 import os
 import io
 import json
@@ -1569,6 +1569,26 @@ def encode_image(file_storage):
     file_storage.seek(0)
     return base64.b64encode(content).decode('utf-8')
 
+
+def _enhance_for_ocr(image_bytes: bytes, target_width: int = 2500) -> str:
+    """Upscales and sharpens image so GPT reads small text more accurately.
+    Only upscales — never downscales originals wider than target_width.
+    Returns base64-encoded JPEG string.
+    """
+    img = Image.open(io.BytesIO(image_bytes))
+    if img.mode not in ("RGB", "L"):
+        img = img.convert("RGB")
+
+    w, h = img.size
+    if w < target_width:
+        scale = target_width / w
+        img = img.resize((target_width, int(h * scale)), Image.LANCZOS)
+        img = img.filter(ImageFilter.UnsharpMask(radius=1.5, percent=150, threshold=3))
+
+    buf = io.BytesIO()
+    img.save(buf, format="JPEG", quality=92)
+    return base64.b64encode(buf.getvalue()).decode("utf-8")
+
 def build_description_from_metadata(meta: dict) -> str:
     """Converts plan_metadata dict to a readable text for bti_knowledge_base.description."""
     parts = []
@@ -1851,7 +1871,7 @@ def analyze_bti():
 
                 # Кэш есть, но без camera_points — добавляем id к комнатам и генерируем только camera_points
                 if rooms_list:
-                    base_64_image = encode_image(file)
+                    base_64_image = _enhance_for_ocr(image_bytes)
                     for i, room in enumerate(rooms_list):
                         if "id" not in room:
                             room["id"] = i + 1
@@ -1867,7 +1887,7 @@ def analyze_bti():
                     return jsonify(result_data)
 
         # 3. Если в базе нет — идем в GPT
-        base_64_image = encode_image(file)
+        base_64_image = _enhance_for_ocr(image_bytes)
 
         system_prompt = """Ты — профессиональный анализатор планов БТИ. Твоя задача — точно извлечь структурированные данные из изображения плана квартиры.
 
