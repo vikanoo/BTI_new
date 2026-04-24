@@ -1996,6 +1996,14 @@ def analyze_bti():
         gpt_result["_debug_hash"] = photo_hash
 
         if not gpt_result.get("error"):
+            score = gpt_result.get("readability_score")
+            if score is not None and score < 90:
+                return jsonify({
+                    "error": True,
+                    "message": "Фото плохого качества, план не читается",
+                    "readability_score": score,
+                    "rejection_reason": gpt_result.get("rejection_reason")
+                })
             gpt_result["rooms"] = generate_camera_points(base_64_image, gpt_result.get("rooms", []))
             effective_total = total_area_param
             gpt_result = calculate_math(gpt_result, effective_total)
