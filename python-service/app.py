@@ -1739,32 +1739,23 @@ def _ensure_area_in_name(rooms: list) -> list:
     return rooms
 
 
-def _sanitize_room_names(rooms: list, plan_metadata: dict) -> list:
-    """Safety net: replace hallucinated names using per-room has_printed_name flag.
-    Falls back to global names_format check if flag is missing (old cache entries).
+def _sanitize_room_names(rooms: list, plan_metadata: dict = None) -> list:
+    """Safety net: replace any non-'Помещение' name unless has_printed_name is explicitly True.
+    Ignores plan_metadata.names_format — unreliable, GPT hallucinates it for marketing plans.
+    Only trusts per-room has_printed_name flag added in recent GPT calls.
     """
-    names_fmt = ((plan_metadata or {}).get("names_format") or "").lower()
-    global_has_labels = "текст внутри контура" in names_fmt
-
     fixed = 0
     for r in rooms:
+        has_printed = r.pop("has_printed_name", None)  # consume flag, never leak to output
         name = r.get("name", "")
         if name.lower().startswith("помещение"):
-            r.pop("has_printed_name", None)
             continue
-        # Per-room flag takes priority; fall back to global names_format
-        has_printed = r.get("has_printed_name")
         if has_printed is True:
-            r.pop("has_printed_name", None)
-            continue
-        if has_printed is None and global_has_labels:
-            # Old cache entry without flag — trust global metadata
             continue
         room_id = r.get("id", "?")
         area = r.get("area")
         r["name"] = f"Помещение {room_id} ({area})" if area is not None else f"Помещение {room_id}"
         fixed += 1
-        r.pop("has_printed_name", None)
     if fixed:
         print(f"[_sanitize_room_names] fixed {fixed} hallucinated names")
     return rooms
