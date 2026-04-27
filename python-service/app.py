@@ -1697,29 +1697,43 @@ def build_description_from_metadata(meta: dict) -> str:
 def save_plan_to_db(photo_hash: str, description: str, is_bti: bool,
                     plan_url: str = None, plan_metadata: dict = None,
                     readability_score: int = None, rejection_reason: str = None) -> str:
-    """Embeds description and upserts plan record in bti_knowledge_base. Returns the record id."""
+    """Saves plan to bti_knowledge_base. Updates if hash exists, inserts if new. Returns record id."""
+    print(f"[save_plan_to_db] start hash={photo_hash}")
+
     embedding_resp = client.embeddings.create(model="text-embedding-3-small", input=description)
     embedding = embedding_resp.data[0].embedding
-    record = {
-        "photo_hash": photo_hash,
+    print(f"[save_plan_to_db] embedding generated len={len(embedding)}")
+
+    fields = {
         "description": description,
         "embedding": embedding,
-        "is_bti": is_bti
+        "is_bti": is_bti,
     }
     if plan_url is not None:
-        record["plan_url"] = plan_url
+        fields["plan_url"] = plan_url
     if plan_metadata is not None:
-        record["plan_metadata"] = plan_metadata
+        fields["plan_metadata"] = plan_metadata
     if readability_score is not None:
-        record["readability_score"] = readability_score
+        fields["readability_score"] = readability_score
     if rejection_reason is not None:
-        record["rejection_reason"] = rejection_reason
-    supabase.table("bti_knowledge_base").upsert(record, on_conflict="photo_hash").execute()
-    resp = supabase.table("bti_knowledge_base").select("id").eq("photo_hash", photo_hash).execute()
-    if not resp.data:
-        raise RuntimeError(f"could not fetch id for hash={photo_hash}")
-    record_id = resp.data[0]["id"]
-    print(f"[save_plan_to_db] saved hash={photo_hash} id={record_id}")
+        fields["rejection_reason"] = rejection_reason
+
+    existing = supabase.table("bti_knowledge_base").select("id").eq("photo_hash", photo_hash).execute()
+    print(f"[save_plan_to_db] existing rows for hash: {len(existing.data) if existing.data else 0}")
+
+    if existing.data:
+        record_id = existing.data[0]["id"]
+        supabase.table("bti_knowledge_base").update(fields).eq("photo_hash", photo_hash).execute()
+        print(f"[save_plan_to_db] updated id={record_id}")
+    else:
+        fields["photo_hash"] = photo_hash
+        insert_resp = supabase.table("bti_knowledge_base").insert(fields).execute()
+        print(f"[save_plan_to_db] insert response data={insert_resp.data}")
+        if not insert_resp.data:
+            raise RuntimeError(f"insert returned no data for hash={photo_hash}")
+        record_id = insert_resp.data[0]["id"]
+        print(f"[save_plan_to_db] inserted new id={record_id}")
+
     return record_id
 
 
