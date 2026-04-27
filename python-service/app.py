@@ -1570,6 +1570,94 @@ def encode_image(file_storage):
     return base64.b64encode(content).decode('utf-8')
 
 
+def _prescan_plan_metadata(base_64_image: str) -> dict:
+    """Quick GPT call to detect if image is a BTI plan and extract format metadata.
+    Used before the main analysis to short-circuit non-plan images and find RAG hints.
+    """
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": "Ты анализируешь изображения. Отвечай только JSON без пояснений."},
+            {"role": "user", "content": [
+                {"type": "text", "text": (
+                    "Сначала определи: является ли это изображение планом квартиры или помещения (план БТИ, архитектурный чертёж)?\n"
+                    "Если НЕ является (фото комнаты, улицы, документ другого типа, пустой лист и т.п.) — верни:\n"
+                    '{"is_plan": false}\n\n'
+                    "Если является — верни описание формата плана:\n"
+                    "{\n"
+                    '  "is_plan": true,\n'
+                    '  "plan_type": "скан|фото|рукописный",\n'
+                    '  "areas_format": "как записаны площади (например: дробью, числом под чертой, числом с м²)",\n'
+                    '  "ids_format": "как обозначены номера помещений",\n'
+                    '  "names_format": "как написаны названия помещений",\n'
+                    '  "total_area_location": "где указана общая площадь или \'не найдена\'",\n'
+                    '  "stamp_present": true\n'
+                    "}"
+                )},
+                {"type": "image_url", "image_url": {"url": f"data:image/jpeg;base64,{base_64_image}"}}
+            ]}
+        ],
+        response_format={"type": "json_object"},
+        max_tokens=300
+    )
+    return json.loads(response.choices[0].message.content)
+
+
+def find_similar_plan_hint(description: str, threshold: float = 0.75) -> dict | None:
+    """Finds the most similar plan in bti_knowledge_base by embedding similarity.
+    Returns plan_metadata of the best match if similarity >= threshold, else None.
+    """
+    query_vector = np.array(_embed_query(description))
+
+    resp = supabase.table("bti_knowledge_base") \
+        .select("plan_metadata, embedding") \
+        .eq("is_bti", True) \
+        .execute()
+
+    if not resp.data:
+        return None
+
+    best_sim = 0.0
+    best_meta = None
+
+    for row in resp.data:
+        raw_emb = row.get("embedding")
+        if not raw_emb or not row.get("plan_metadata"):
+            continue
+        chunk_vector = np.array(raw_emb)
+        norm_q = np.linalg.norm(query_vector)
+        norm_c = np.linalg.norm(chunk_vector)
+        if norm_q == 0 or norm_c == 0:
+            continue
+        sim = float(np.dot(query_vector, chunk_vector) / (norm_q * norm_c))
+        if sim > best_sim:
+            best_sim = sim
+            best_meta = row["plan_metadata"]
+
+    if best_sim >= threshold and best_meta:
+        print(f"[find_similar_plan_hint] match found sim={best_sim:.3f}")
+        return best_meta
+
+    print(f"[find_similar_plan_hint] no match above threshold, best_sim={best_sim:.3f}")
+    return None
+
+
+def _build_hint_block(meta: dict) -> str:
+    """Converts similar plan's plan_metadata into a hint string for injection into GPT prompt."""
+    lines = ["ПОДСКАЗКА ПО ФОРМАТУ (из базы знаний — аналогичный план):"]
+    if meta.get("areas_format"):
+        lines.append(f"- Площади записаны так: {meta['areas_format']}")
+    if meta.get("ids_format"):
+        lines.append(f"- Номера помещений: {meta['ids_format']}")
+    if meta.get("names_format"):
+        lines.append(f"- Названия: {meta['names_format']}")
+    if meta.get("total_area_location"):
+        lines.append(f"- Общая площадь: {meta['total_area_location']}")
+    if meta.get("reading_tips"):
+        lines.append(f"- Инструкция по чтению: {meta['reading_tips']}")
+    return "\n".join(lines)
+
+
 def _enhance_for_ocr(image_bytes: bytes) -> str:
     """Enhances contrast and sharpness so GPT reads small text more accurately.
     Does not resize — preserves spatial structure so GPT doesn't lose rooms.
@@ -1888,7 +1976,22 @@ def analyze_bti():
         # 3. Если в базе нет — идем в GPT
         base_64_image = _enhance_for_ocr(image_bytes)
 
-        system_prompt = """Ты — профессиональный анализатор планов БТИ. Твоя задача — точно извлечь структурированные данные из изображения плана квартиры.
+        # 3.1 Pre-scan: проверяем что это план и ищем похожий в базе знаний
+        hint_block = ""
+        try:
+            pre_meta = _prescan_plan_metadata(base_64_image)
+            if not pre_meta.get("is_plan", True):
+                print("[analyze-bti] pre-scan: not a plan, early exit")
+                return jsonify({"error": True, "message": "На фото не план БТИ"})
+            pre_description = build_description_from_metadata(pre_meta)
+            similar_meta = find_similar_plan_hint(pre_description)
+            if similar_meta:
+                hint_block = "\n\n" + _build_hint_block(similar_meta)
+                print(f"[analyze-bti] RAG hint injected: {similar_meta.get('reading_tips', '')}")
+        except Exception as _e:
+            print(f"[analyze-bti] pre-scan skipped: {_e}")
+
+        system_prompt = """Ты — профессиональный анализатор планов БТИ. Твоя задача — точно извлечь структурированные данные из изображения плана квартиры.""" + hint_block + """
 
 ГЛАВНОЕ ПРАВИЛО ИМЕНОВАНИЯ — прочитай прежде всего:
 На большинстве планов БТИ названия помещений НЕ написаны — только цифры (номер и площадь). В этом случае ВСЕ помещения называются "Помещение [id]" с площадью в скобках если она указана: "Помещение 2 (3.2)", или без скобок если площадь не читается: "Помещение 2". Слова "Кухня", "Санузел", "Коридор", "Жилая" и любые другие названия допустимы ТОЛЬКО если они буквально напечатаны на плане внутри или рядом с контуром помещения. Если ты не видишь напечатанное слово — пишешь "Помещение [id]", без исключений.
@@ -1999,11 +2102,37 @@ def analyze_bti():
         gpt_result["_debug_hash"] = photo_hash
 
         if not gpt_result.get("error"):
+            score = gpt_result.get("readability_score")
+            if score is not None and score < 60:
+                print(f"[analyze-bti] readability_score={score} below threshold, rejecting")
+                return jsonify({
+                    "error": True,
+                    "message": "План плохо читается — загрузите более чёткое изображение или скан",
+                    "readability_score": score,
+                    "rejection_reason": gpt_result.get("rejection_reason")
+                })
+
+        if not gpt_result.get("error"):
             effective_total = total_area_param or gpt_result.get("total_area")
             if effective_total:
                 rooms = gpt_result.get("rooms") or []
-                calculated_sum = sum(r.get("area") or 0 for r in rooms)
-                if calculated_sum < effective_total * 0.85:
+                rooms_with_area = [r for r in rooms if r.get("area") is not None]
+                null_count = len(rooms) - len(rooms_with_area)
+                calculated_sum = sum(r["area"] for r in rooms_with_area)
+
+                math_fail = False
+                if null_count > 0:
+                    # Some rooms have no area on the plan (sanitary, corridor etc.)
+                    # Check that the unaccounted gap is plausible: < 15 m² per null room
+                    gap = effective_total - calculated_sum
+                    area_per_null = gap / null_count if null_count else 0
+                    if gap < 0 or area_per_null > 15:
+                        math_fail = True
+                else:
+                    if calculated_sum < effective_total * 0.85:
+                        math_fail = True
+
+                if math_fail:
                     return jsonify({
                         "error": True,
                         "message": "План проанализирован не полностью — часть помещений не читается",
