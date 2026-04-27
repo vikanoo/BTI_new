@@ -1808,7 +1808,7 @@ def calculate_math(data, total_area_param):
         }
     return data
 
-def generate_camera_points(base_64_image: str, rooms: list) -> list:
+def generate_camera_points(base_64_image: str, rooms: list, plan_metadata: dict = None) -> list:
     """Generates camera_points for each room using a dedicated GPT-4o-mini call."""
     rooms_for_prompt = [
         {"id": r["id"], "name": r.get("name", f"Помещение {r['id']}"), "area": r.get("area")}
@@ -1817,6 +1817,13 @@ def generate_camera_points(base_64_image: str, rooms: list) -> list:
 
     cp_system = """Ты — специалист по расстановке точек съёмки на планах БТИ.
 Тебе дан план квартиры и список помещений. Расставь точки съёмки для фотофиксации каждого помещения.
+
+ЦЕЛЬ СЪЁМКИ — ОБНАРУЖЕНИЕ НЕЗАКОННОЙ ПЕРЕПЛАНИРОВКИ.
+Фотографии будут сравниваться с официальным планом. При расстановке точек приоритет отдавай:
+- Стыкам стен между смежными помещениями (здесь чаще всего проделывают незаконные проёмы или сносят перегородки)
+- Дверным проёмам — их положение, ширина и наличие должны быть видны чётко
+- Углам помещения — фиксируют полный контур стен
+- Стенам, граничащим с другим помещением — они могли быть снесены или перенесены
 
 КОЛИЧЕСТВО ТОЧЕК (строго по площади и форме):
 - до 6 м² → ровно 2 точки
@@ -1839,12 +1846,30 @@ def generate_camera_points(base_64_image: str, rooms: list) -> list:
 Запрещена мебель и техника — на плане их нет.
 Сантехника (раковина, унитаз, ванна) допустима если обозначена на плане.
 
+ОПИСАНИЕ (description): одно-два предложения на русском — полная инструкция для пользователя.
+Объединяет локацию, что снять и почему это важно для проверки перепланировки.
+ВАЖНО: если смежное помещение можно определить по плану — называй его по имени из списка комнат, не пиши "соседняя комната". Например: "стена со стороны Кухни (2)", "стык с Коридором (4)".
+Пример: "Встаньте у входной двери и снимите стену напротив целиком — важно захватить угол, где она стыкуется с Кухней (3): именно здесь чаще всего проделывают незаконные проёмы."
+Пример: "Сфотографируйте дверной проём и участок стены вокруг него — нужно зафиксировать ширину и положение проёма по сравнению с планом."
+Запрещены общие фразы без привязки к перепланировке.
+
+ЭЛЕМЕНТ ПЕРЕПЛАНИРОВКИ (renovation_element): одно из значений:
+- "wall_junction" — точка фиксирует стык стен между смежными помещениями
+- "doorway" — точка фиксирует дверной проём (его наличие, ширину, положение)
+- "full_room_overview" — общий вид, охватывает несколько стен
+- "corner" — угол помещения, фиксирует целостность двух смежных стен
+
 КООРДИНАТЫ: x_percent (0=левый, 1=правый), y_percent (0=верхний, 1=нижний) — позиция ФОТОГРАФА на плане.
 
 Отвечай строго в JSON."""
 
-    cp_user = f"""Расставь точки съёмки для каждого помещения плана:
+    meta_block = ""
+    if plan_metadata:
+        meta_block = f"\nМетаданные плана: {json.dumps(plan_metadata, ensure_ascii=False)}\n"
 
+    cp_user = f"""Расставь точки съёмки для каждого помещения плана.
+{meta_block}
+Список помещений:
 {json.dumps(rooms_for_prompt, ensure_ascii=False, indent=2)}
 
 Верни JSON:
@@ -1853,7 +1878,7 @@ def generate_camera_points(base_64_image: str, rooms: list) -> list:
     {{
       "id": 1,
       "camera_points": [
-        {{"point_id": 1, "location": "...", "view": "...", "x_percent": 0.25, "y_percent": 0.60}}
+        {{"point_id": 1, "location": "...", "view": "...", "description": "...", "renovation_element": "wall_junction", "x_percent": 0.25, "y_percent": 0.60}}
       ]
     }}
   ]
@@ -2168,7 +2193,7 @@ def analyze_bti():
                         "readability_score": gpt_result.get("readability_score"),
                         "rejection_reason": gpt_result.get("rejection_reason")
                     })
-            gpt_result["rooms"] = generate_camera_points(base_64_image, gpt_result.get("rooms", []))
+            gpt_result["rooms"] = generate_camera_points(base_64_image, gpt_result.get("rooms", []), gpt_result.get("plan_metadata"))
             gpt_result = calculate_math(gpt_result, effective_total)
             gpt_result["plan_description"] = build_plan_description(gpt_result)
 
