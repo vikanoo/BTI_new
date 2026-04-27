@@ -2136,15 +2136,16 @@ def analyze_bti():
                 calculated_sum = sum(r["area"] for r in rooms_with_area)
 
                 math_fail = False
+                gap = effective_total - calculated_sum
                 if null_count > 0:
                     # Some rooms have no area on the plan (sanitary, corridor etc.)
                     # Check that the unaccounted gap is plausible: < 15 m² per null room
-                    gap = effective_total - calculated_sum
-                    area_per_null = gap / null_count if null_count else 0
+                    area_per_null = gap / null_count
                     if gap < 0 or area_per_null > 15:
                         math_fail = True
                 else:
-                    if calculated_sum < effective_total * 0.85:
+                    # No null rooms: fail if gap > 5 m²
+                    if gap > 5:
                         math_fail = True
 
                 if math_fail:
