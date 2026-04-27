@@ -1742,8 +1742,9 @@ def _transform_rooms_for_storage(rooms: list) -> dict:
 
 
 def save_rooms_to_db(bti_id: str, rooms: list):
-    """Saves transformed rooms JSON to bti_rooms table linked to bti_knowledge_base by bti_id."""
+    """Saves transformed rooms JSON to bti_rooms. Deletes existing row first to prevent duplicates."""
     room_details = _transform_rooms_for_storage(rooms)
+    supabase.table("bti_rooms").delete().eq("bti_id", bti_id).execute()
     supabase.table("bti_rooms").insert({
         "bti_id": bti_id,
         "room_details_json": room_details
@@ -2183,6 +2184,7 @@ def save_plan():
     try:
         data = request.get_json()
         if not data:
+            print("[save-plan] ERROR: empty body")
             return jsonify({"error": "JSON body required"}), 400
 
         photo_hash = data.get("photo_hash", "").strip()
@@ -2192,9 +2194,13 @@ def save_plan():
         readability_score = data.get("readability_score")
         rejection_reason = data.get("rejection_reason")
 
+        print(f"[save-plan] received photo_hash={repr(photo_hash)} plan_meta_keys={list(plan_meta.keys()) if plan_meta else None} rooms_count={len(rooms)}")
+
         if not photo_hash:
+            print("[save-plan] ERROR: photo_hash is empty")
             return jsonify({"error": "photo_hash is required"}), 400
         if not plan_meta:
+            print("[save-plan] ERROR: plan_metadata is empty")
             return jsonify({"error": "plan_metadata is required"}), 400
 
         description = build_description_from_metadata(plan_meta)
