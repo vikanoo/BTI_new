@@ -2017,6 +2017,7 @@ def analyze_bti():
                 print(f"[analyze-bti] rooms in cache: {len(rooms_list)}, has_camera_points={bool(has_camera_points)}")
                 if has_camera_points:
                     result_data["error"] = False
+                    result_data["rooms"] = _sanitize_room_names(result_data.get("rooms", []), result_data.get("plan_metadata"))
                     effective_total = total_area_param or result_data.get("total_area")
                     result_data = calculate_math(result_data, effective_total)
                     result_data["plan_description"] = build_plan_description(result_data)
@@ -2028,6 +2029,7 @@ def analyze_bti():
                     for i, room in enumerate(rooms_list):
                         if "id" not in room:
                             room["id"] = i + 1
+                    rooms_list = _sanitize_room_names(rooms_list, result_data.get("plan_metadata"))
                     rooms_list = generate_camera_points(base_64_image, rooms_list)
 
                     result_data["rooms"] = rooms_list
