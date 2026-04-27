@@ -1742,14 +1742,15 @@ def _transform_rooms_for_storage(rooms: list) -> dict:
 
 
 def save_rooms_to_db(bti_id: str, rooms: list):
-    """Saves transformed rooms JSON to bti_rooms. Deletes existing row first to prevent duplicates."""
+    """Saves transformed rooms JSON to bti_rooms. Updates if row exists, inserts if new."""
     room_details = _transform_rooms_for_storage(rooms)
-    supabase.table("bti_rooms").delete().eq("bti_id", bti_id).execute()
-    supabase.table("bti_rooms").insert({
-        "bti_id": bti_id,
-        "room_details_json": room_details
-    }).execute()
-    print(f"[save_rooms_to_db] saved {len(rooms)} rooms for bti_id={bti_id}")
+    existing = supabase.table("bti_rooms").select("id").eq("bti_id", bti_id).execute()
+    if existing.data:
+        supabase.table("bti_rooms").update({"room_details_json": room_details}).eq("bti_id", bti_id).execute()
+        print(f"[save_rooms_to_db] updated {len(rooms)} rooms for bti_id={bti_id}")
+    else:
+        supabase.table("bti_rooms").insert({"bti_id": bti_id, "room_details_json": room_details}).execute()
+        print(f"[save_rooms_to_db] inserted {len(rooms)} rooms for bti_id={bti_id}")
 
 
 def build_plan_description(data):
