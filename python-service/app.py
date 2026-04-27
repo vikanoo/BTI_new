@@ -1727,6 +1727,18 @@ def save_plan_to_db(photo_hash: str, description: str, is_bti: bool,
     return record_id
 
 
+def _ensure_area_in_name(rooms: list) -> list:
+    """If room has area but name has no (X.X) suffix, append it."""
+    import re
+    for room in rooms:
+        area = room.get("area")
+        name = room.get("name", "")
+        if area is not None and not re.search(r'\([\d.,]+\)', name):
+            area_str = str(int(area)) if area == int(area) else str(area)
+            room["name"] = f"{name} ({area_str})"
+    return rooms
+
+
 def _clean_room_name(name: str) -> str:
     """Strips the area part from room name: 'Помещение 1 (18,5)' → 'Помещение 1'."""
     import re
@@ -2113,6 +2125,8 @@ def analyze_bti():
         )
 
         gpt_result = json.loads(response.choices[0].message.content)
+        if not gpt_result.get("error") and gpt_result.get("rooms"):
+            gpt_result["rooms"] = _ensure_area_in_name(gpt_result["rooms"])
         gpt_result["_debug_hash"] = photo_hash
 
         if not gpt_result.get("error"):
