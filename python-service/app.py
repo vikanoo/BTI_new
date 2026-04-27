@@ -1589,7 +1589,7 @@ def _prescan_plan_metadata(base_64_image: str) -> dict:
                     '  "plan_type": "скан|фото|рукописный",\n'
                     '  "areas_format": "как записаны площади (например: дробью, числом под чертой, числом с м²)",\n'
                     '  "ids_format": "как обозначены номера помещений",\n'
-                    '  "names_format": "как написаны названия помещений",\n'
+                    '  "names_format": "ВАЖНО: текстовые названия комнат — это слова типа \'Кухня\', \'Жилая\', \'Санузел\' напечатанные ВНУТРИ контура комнаты на плане. Значки мебели (диван, кровать, стол), сантехника (унитаз, ванна) и тексты вне плана (в шапке, в легенде) — НЕ являются названиями. Пиши \'текст внутри контура\' ТОЛЬКО если видишь буквенные слова-названия прямо в контурах комнат. Иначе — \'нет названий, только номера\'.",\n'
                     '  "total_area_location": "где указана общая площадь или \'не найдена\'",\n'
                     '  "stamp_present": true\n'
                     "}"
@@ -1740,12 +1740,13 @@ def _ensure_area_in_name(rooms: list) -> list:
 
 
 def _sanitize_room_names(rooms: list, plan_metadata: dict) -> list:
-    """Safety net: if plan has no text labels, replace any hallucinated names with 'Помещение N'."""
-    if not plan_metadata:
-        return rooms
-    names_fmt = (plan_metadata.get("names_format") or "").lower()
-    no_labels = any(kw in names_fmt for kw in ["нет названий", "только номера", "не указаны", "отсутствуют"])
-    if not no_labels:
+    """Safety net: only trust room names when plan_metadata explicitly confirms text labels.
+    Default (no metadata, uncertain format, marketing plan with furniture icons) → sanitize.
+    """
+    names_fmt = ((plan_metadata or {}).get("names_format") or "").lower()
+    # Whitelist: only skip sanitization if GPT explicitly confirmed text labels inside contours
+    has_confirmed_labels = "текст внутри контура" in names_fmt
+    if has_confirmed_labels:
         return rooms
     fixed = 0
     for r in rooms:
