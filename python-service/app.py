@@ -1740,25 +1740,33 @@ def _ensure_area_in_name(rooms: list) -> list:
 
 
 def _sanitize_room_names(rooms: list, plan_metadata: dict) -> list:
-    """Safety net: only trust room names when plan_metadata explicitly confirms text labels.
-    Default (no metadata, uncertain format, marketing plan with furniture icons) → sanitize.
+    """Safety net: replace hallucinated names using per-room has_printed_name flag.
+    Falls back to global names_format check if flag is missing (old cache entries).
     """
     names_fmt = ((plan_metadata or {}).get("names_format") or "").lower()
-    # Whitelist: only skip sanitization if GPT explicitly confirmed text labels inside contours
-    has_confirmed_labels = "текст внутри контура" in names_fmt
-    if has_confirmed_labels:
-        return rooms
+    global_has_labels = "текст внутри контура" in names_fmt
+
     fixed = 0
     for r in rooms:
         name = r.get("name", "")
         if name.lower().startswith("помещение"):
+            r.pop("has_printed_name", None)
+            continue
+        # Per-room flag takes priority; fall back to global names_format
+        has_printed = r.get("has_printed_name")
+        if has_printed is True:
+            r.pop("has_printed_name", None)
+            continue
+        if has_printed is None and global_has_labels:
+            # Old cache entry without flag — trust global metadata
             continue
         room_id = r.get("id", "?")
         area = r.get("area")
         r["name"] = f"Помещение {room_id} ({area})" if area is not None else f"Помещение {room_id}"
         fixed += 1
+        r.pop("has_printed_name", None)
     if fixed:
-        print(f"[_sanitize_room_names] fixed {fixed} hallucinated names (names_format='{names_fmt}')")
+        print(f"[_sanitize_room_names] fixed {fixed} hallucinated names")
     return rooms
 
 
@@ -2054,6 +2062,12 @@ def analyze_bti():
 ГЛАВНОЕ ПРАВИЛО ИМЕНОВАНИЯ — прочитай прежде всего:
 На большинстве планов БТИ названия помещений НЕ написаны — только цифры (номер и площадь). В этом случае ВСЕ помещения называются "Помещение [id]" с площадью в скобках если она указана: "Помещение 2 (3.2)", или без скобок если площадь не читается: "Помещение 2". Слова "Кухня", "Санузел", "Коридор", "Жилая" и любые другие названия допустимы ТОЛЬКО если они буквально напечатаны на плане внутри или рядом с контуром помещения. Если ты не видишь напечатанное слово — пишешь "Помещение [id]", без исключений.
 
+ПОЛЕ has_printed_name (обязательное для каждого помещения):
+- true — ТОЛЬКО если ты видишь буквенное слово-название напечатанное ВНУТРИ контура этого конкретного помещения
+- false — во всех остальных случаях: нет текста, только цифры, только мебель, только значки сантехники, текст снаружи контура
+Мебель (диван, кровать, стол), сантехника (унитаз, ванна, раковина), плита — НЕ являются текстовым названием. has_printed_name: false.
+Текст в шапке плана, в легенде, в таблице площадей — НЕ является названием помещения. has_printed_name: false.
+
 ПРАВИЛА ИДЕНТИФИКАЦИИ (id):
 - Каждому помещению присвой уникальный числовой id, начиная с 1.
 - Если на плане есть своя нумерация — используй её как id (число).
@@ -2153,7 +2167,8 @@ def analyze_bti():
     {
       "id": 1,
       "name": "<'Помещение 1 (18.5)' если нет текста на плане; иначе дословный текст с плана>",
-      "area": <число с плана или null>
+      "area": <число с плана или null>,
+      "has_printed_name": <true только если буквенное слово напечатано внутри контура; иначе false>
     }
   ]
 }"""
