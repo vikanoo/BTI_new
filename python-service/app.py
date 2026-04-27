@@ -1847,7 +1847,7 @@ def generate_camera_points(base_64_image: str, rooms: list) -> list:
 }}"""
 
     cp_response = client.chat.completions.create(
-        model="gpt-4o",
+        model="gpt-4o-mini",
         messages=[
             {"role": "system", "content": cp_system},
             {"role": "user", "content": [
@@ -2099,7 +2099,7 @@ def analyze_bti():
 }"""
 
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-4o-mini",
             messages=[
                 {"role": "system", "content": system_prompt},
                 {
