@@ -1739,10 +1739,16 @@ def _ensure_area_in_name(rooms: list) -> list:
     return rooms
 
 
-def _sanitize_room_names(rooms: list, plan_metadata: dict = None) -> list:
-    """Always replace any non-'Помещение' room name. No exceptions, no flags.
-    GPT hallucinates both names and confirmation flags, so we never trust either.
-    """
+def _has_text_labels(plan_metadata: dict) -> bool:
+    """Returns True only if plan_metadata explicitly confirms printed text labels inside contours."""
+    fmt = ((plan_metadata or {}).get("names_format") or "").lower()
+    return "текст внутри контура" in fmt
+
+
+def _sanitize_room_names(rooms: list, allow_names: bool = False) -> list:
+    """Replace non-'Помещение' names unless allow_names=True (plan has confirmed printed labels)."""
+    if allow_names:
+        return rooms
     fixed = 0
     for r in rooms:
         r.pop("has_printed_name", None)
@@ -1981,7 +1987,7 @@ def analyze_bti():
         print(f"[analyze-bti] hash={photo_hash} (source=file)")
 
         # 2. Ищем в основной таблице
-        existing = supabase.table("bti_knowledge_base").select("id, is_bti").eq("photo_hash", photo_hash).execute()
+        existing = supabase.table("bti_knowledge_base").select("id, is_bti, plan_metadata").eq("photo_hash", photo_hash).execute()
         print(f"[analyze-bti] cache rows found: {len(existing.data) if existing.data else 0}")
 
         # Проверяем, что список не пустой
@@ -2003,9 +2009,11 @@ def analyze_bti():
                 rooms_list = result_data.get("rooms", [])
                 has_camera_points = rooms_list and rooms_list[0].get("camera_points")
                 print(f"[analyze-bti] rooms in cache: {len(rooms_list)}, has_camera_points={bool(has_camera_points)}")
+                cached_plan_meta = existing.data[0].get("plan_metadata")
+                allow_names = _has_text_labels(cached_plan_meta)
                 if has_camera_points:
                     result_data["error"] = False
-                    result_data["rooms"] = _sanitize_room_names(result_data.get("rooms", []), result_data.get("plan_metadata"))
+                    result_data["rooms"] = _sanitize_room_names(result_data.get("rooms", []), allow_names)
                     effective_total = total_area_param or result_data.get("total_area")
                     result_data = calculate_math(result_data, effective_total)
                     result_data["plan_description"] = build_plan_description(result_data)
@@ -2017,7 +2025,7 @@ def analyze_bti():
                     for i, room in enumerate(rooms_list):
                         if "id" not in room:
                             room["id"] = i + 1
-                    rooms_list = _sanitize_room_names(rooms_list, result_data.get("plan_metadata"))
+                    rooms_list = _sanitize_room_names(rooms_list, allow_names)
                     rooms_list = generate_camera_points(base_64_image, rooms_list)
 
                     result_data["rooms"] = rooms_list
@@ -2034,11 +2042,14 @@ def analyze_bti():
 
         # 3.1 Pre-scan: проверяем что это план и ищем похожий в базе знаний
         hint_block = ""
+        allow_names = False  # default: no semantic names until prescan confirms
         try:
             pre_meta = _prescan_plan_metadata(base_64_image)
             if not pre_meta.get("is_plan", True):
                 print("[analyze-bti] pre-scan: not a plan, early exit")
                 return jsonify({"error": True, "message": "На фото не план БТИ"})
+            allow_names = _has_text_labels(pre_meta)
+            print(f"[analyze-bti] pre-scan names_format='{pre_meta.get('names_format')}' allow_names={allow_names}")
             pre_description = build_description_from_metadata(pre_meta)
             similar_meta = find_similar_plan_hint(pre_description)
             if similar_meta:
@@ -2049,8 +2060,9 @@ def analyze_bti():
 
         system_prompt = """Ты — профессиональный анализатор планов БТИ. Твоя задача — точно извлечь структурированные данные из изображения плана квартиры.""" + hint_block + """
 
-ПРАВИЛО ИМЕНОВАНИЯ — единственное и обязательное:
-ВСЕ помещения называются "Помещение [id]" с площадью в скобках если она указана: "Помещение 2 (3.2)", или без скобок если площадь не читается: "Помещение 2". Запрещено использовать слова "Кухня", "Санузел", "Коридор", "Жилая", "Гостиная", "Спальня" или любые другие семантические названия — даже если они написаны на плане. Только формат "Помещение [id]".
+""" + ("""ПРАВИЛО ИМЕНОВАНИЯ:
+На этом плане НЕТ текстовых подписей внутри контуров помещений (только цифры). ВСЕ помещения называются строго "Помещение [id]" с площадью: "Помещение 2 (3.2)" или без: "Помещение 2". ЗАПРЕЩЕНО писать "Кухня", "Санузел", "Гостиная", "Жилая", "Коридор" и любые другие слова — только "Помещение [id]".""" if not allow_names else """ПРАВИЛО ИМЕНОВАНИЯ:
+На этом плане ЕСТЬ текстовые подписи внутри контуров помещений. Копируй их ДОСЛОВНО. Если подпись не видна внутри конкретного контура — пиши "Помещение [id]". Никаких синонимов, никаких домыслов.""") + """
 
 
 ПРАВИЛА ИДЕНТИФИКАЦИИ (id):
@@ -2151,7 +2163,7 @@ def analyze_bti():
   "rooms": [
     {
       "id": 1,
-      "name": "<всегда 'Помещение N (площадь)' или 'Помещение N' если площадь не указана>",
+      "name": "<'Помещение N (площадь)' или 'Помещение N'""" + (" — подписей нет, только этот формат>" if not allow_names else " — или дословный текст с плана если подпись есть внутри контура>") + """,
       "area": <число с плана или null>
     }
   ]
@@ -2176,7 +2188,7 @@ def analyze_bti():
         gpt_result = json.loads(response.choices[0].message.content)
         if not gpt_result.get("error") and gpt_result.get("rooms"):
             gpt_result["rooms"] = _ensure_area_in_name(gpt_result["rooms"])
-            gpt_result["rooms"] = _sanitize_room_names(gpt_result["rooms"], gpt_result.get("plan_metadata"))
+            gpt_result["rooms"] = _sanitize_room_names(gpt_result["rooms"], allow_names)
         gpt_result["_debug_hash"] = photo_hash
 
         if not gpt_result.get("error"):
