@@ -1921,12 +1921,9 @@ def analyze_bti():
         if not quality["ok"]:
             return jsonify(quality)
 
-        # 1. Хешируем: если передан URL — хешируем его (стабильно), иначе — байты файла
-        if plan_url:
-            photo_hash = hashlib.md5(plan_url.encode()).hexdigest()
-        else:
-            photo_hash = get_image_hash(file)
-        print(f"[analyze-bti] hash={photo_hash} (source={'url' if plan_url else 'file'})")
+        # 1. Хешируем по байтам файла — URL ненадёжен (Supabase Storage перезаписывает по тому же URL)
+        photo_hash = get_image_hash(file)
+        print(f"[analyze-bti] hash={photo_hash} (source=file)")
 
         # 2. Ищем в основной таблице
         existing = supabase.table("bti_knowledge_base").select("id, is_bti").eq("photo_hash", photo_hash).execute()
@@ -2112,7 +2109,8 @@ def analyze_bti():
                     ],
                 }
             ],
-            response_format={"type": "json_object"}
+            response_format={"type": "json_object"},
+            temperature=0
         )
 
         gpt_result = json.loads(response.choices[0].message.content)
