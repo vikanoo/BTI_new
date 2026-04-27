@@ -1739,6 +1739,28 @@ def _ensure_area_in_name(rooms: list) -> list:
     return rooms
 
 
+def _sanitize_room_names(rooms: list, plan_metadata: dict) -> list:
+    """Safety net: if plan has no text labels, replace any hallucinated names with 'Помещение N'."""
+    if not plan_metadata:
+        return rooms
+    names_fmt = (plan_metadata.get("names_format") or "").lower()
+    no_labels = any(kw in names_fmt for kw in ["нет названий", "только номера", "не указаны", "отсутствуют"])
+    if not no_labels:
+        return rooms
+    fixed = 0
+    for r in rooms:
+        name = r.get("name", "")
+        if name.lower().startswith("помещение"):
+            continue
+        room_id = r.get("id", "?")
+        area = r.get("area")
+        r["name"] = f"Помещение {room_id} ({area})" if area is not None else f"Помещение {room_id}"
+        fixed += 1
+    if fixed:
+        print(f"[_sanitize_room_names] fixed {fixed} hallucinated names (names_format='{names_fmt}')")
+    return rooms
+
+
 def _clean_room_name(name: str) -> str:
     """Strips the area part from room name: 'Помещение 1 (18,5)' → 'Помещение 1'."""
     import re
@@ -2109,6 +2131,8 @@ def analyze_bti():
 
 ВАЖНО для total_area: это ТОЛЬКО итоговая площадь квартиры из штампа или отдельной строки вне помещений. Площади внутри контуров комнат — НЕ total_area. Если итоговая площадь не видна явно — пиши null.
 
+ВАЖНО для name: сначала заполни plan_metadata.names_format. Если там "нет названий" или "только номера" — ВСЕ поля name ОБЯЗАНЫ быть "Помещение [id]" или "Помещение [id] ([area])". Названия комнат ("Кухня", "Санузел" и т.п.) допустимы ТОЛЬКО если names_format = "текст внутри контура".
+
 {
   "error": false,
   "is_bti": true,
@@ -2119,7 +2143,7 @@ def analyze_bti():
     "plan_type": "<скан|фото|рукописный>",
     "areas_format": "<описание того что реально видишь>",
     "ids_format": "<описание того что реально видишь>",
-    "names_format": "<описание того что реально видишь>",
+    "names_format": "<'нет названий, только номера' если текстовых имён нет; 'текст внутри контура' если есть>",
     "total_area_location": "<где найдена или 'не найдена'>",
     "stamp_present": <true только если штамп виден на изображении>,
     "reading_tips": "<реально наблюдаемые особенности>"
@@ -2127,7 +2151,7 @@ def analyze_bti():
   "rooms": [
     {
       "id": 1,
-      "name": "<название с плана или 'Помещение 1'> (<площадь>)",
+      "name": "<'Помещение 1 (18.5)' если нет текста на плане; иначе дословный текст с плана>",
       "area": <число с плана или null>
     }
   ]
@@ -2152,6 +2176,7 @@ def analyze_bti():
         gpt_result = json.loads(response.choices[0].message.content)
         if not gpt_result.get("error") and gpt_result.get("rooms"):
             gpt_result["rooms"] = _ensure_area_in_name(gpt_result["rooms"])
+            gpt_result["rooms"] = _sanitize_room_names(gpt_result["rooms"], gpt_result.get("plan_metadata"))
         gpt_result["_debug_hash"] = photo_hash
 
         if not gpt_result.get("error"):
