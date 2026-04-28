@@ -1963,6 +1963,34 @@ def _check_image_quality(image_bytes: bytes) -> dict:
     return {"ok": True}
 
 
+def _validate_area_math(rooms: list, total_area: float) -> dict | None:
+    """Returns None if room areas are consistent with total_area, or an error dict.
+    Accounts for loggia (×0.5) and balcony/terrace (×0.3) BTI coefficients.
+    """
+    rooms_with_area = [r for r in rooms if r.get("area") is not None]
+    null_count = len(rooms) - len(rooms_with_area)
+    calculated_sum = sum(r["area"] for r in rooms_with_area)
+
+    coeff_reduction = 0.0
+    for r in rooms_with_area:
+        name_lower = r.get("name", "").lower()
+        if "лоджи" in name_lower:
+            coeff_reduction += r["area"] * 0.5
+        elif "балкон" in name_lower or "террас" in name_lower:
+            coeff_reduction += r["area"] * 0.7
+
+    gap = total_area - calculated_sum + coeff_reduction
+
+    if null_count > 0:
+        area_per_null = gap / null_count
+        if gap < -5 or area_per_null > 5:
+            return {"error": True, "message": "План проанализирован не полностью — часть помещений не читается"}
+    else:
+        if gap > 5:
+            return {"error": True, "message": "План проанализирован не полностью — часть помещений не читается"}
+    return None
+
+
 # --- ЭНДПОИНТ ---
 
 @app.route('/analyze-bti', methods=['POST'])
@@ -1972,7 +2000,6 @@ def analyze_bti():
 
     file = request.files['file']
     total_area_param = request.args.get('total_area', type=float)
-    plan_url = request.args.get('plan_url', '').strip()
 
     try:
         # 0. Быстрая проверка качества без GPT
@@ -2015,6 +2042,10 @@ def analyze_bti():
                     result_data["error"] = False
                     result_data["rooms"] = _sanitize_room_names(result_data.get("rooms", []), allow_names)
                     effective_total = total_area_param or result_data.get("total_area")
+                    if effective_total:
+                        math_error = _validate_area_math(result_data.get("rooms", []), effective_total)
+                        if math_error:
+                            return jsonify(math_error)
                     result_data = calculate_math(result_data, effective_total)
                     result_data["plan_description"] = build_plan_description(result_data)
                     return jsonify(result_data)
@@ -2033,6 +2064,10 @@ def analyze_bti():
                     result_data["is_bti"] = True
                     result_data.pop("is_plan", None)
                     effective_total = total_area_param or result_data.get("total_area")
+                    if effective_total:
+                        math_error = _validate_area_math(rooms_list, effective_total)
+                        if math_error:
+                            return jsonify(math_error)
                     result_data = calculate_math(result_data, effective_total)
                     result_data["plan_description"] = build_plan_description(result_data)
                     return jsonify(result_data)
@@ -2058,11 +2093,32 @@ def analyze_bti():
         except Exception as _e:
             print(f"[analyze-bti] pre-scan skipped: {_e}")
 
-        system_prompt = """Ты — профессиональный анализатор планов БТИ. Твоя задача — точно извлечь структурированные данные из изображения плана квартиры.""" + hint_block + """
+        system_prompt = """Ты — профессиональный анализатор планов БТИ. Твоя задача — точно извлечь структурированные данные из изображения плана квартиры.
 
-""" + ("""ПРАВИЛО ИМЕНОВАНИЯ:
-На этом плане НЕТ текстовых подписей внутри контуров помещений (только цифры). ВСЕ помещения называются строго "Помещение [id]" с площадью: "Помещение 2 (3.2)" или без: "Помещение 2". ЗАПРЕЩЕНО писать "Кухня", "Санузел", "Гостиная", "Жилая", "Коридор" и любые другие слова — только "Помещение [id]".""" if not allow_names else """ПРАВИЛО ИМЕНОВАНИЯ:
-На этом плане ЕСТЬ текстовые подписи внутри контуров помещений. Копируй их ДОСЛОВНО. Если подпись не видна внутри конкретного контура — пиши "Помещение [id]". Никаких синонимов, никаких домыслов.""") + """
+ПРОВЕРКА КАЧЕСТВА И ТИПА ИЗОБРАЖЕНИЯ — выполни ПЕРВОЙ, до любого извлечения данных:
+1. Это не план БТИ (фото комнаты, документ другого типа, случайное фото) →
+   {"error": true, "message": "На фото не план БТИ", "plan_metadata": null}
+2. Изображение слишком размытое, тёмное, засвеченное или повёрнуто так, что прочитать план невозможно →
+   {"error": true, "message": "Фото плохого качества, план не читается", "plan_metadata": {"plan_type": "фото", "areas_format": "не читается", "ids_format": "не читается", "names_format": "не читается", "total_area_location": "не найдена", "stamp_present": false, "reading_tips": "Качество изображения недостаточно для анализа."}}
+3. Виден только фрагмент плана (план обрезан, часть листа за кадром, угол листа) →
+   {"error": true, "message": "На фото только фрагмент плана", "plan_metadata": {"plan_type": "скан", "areas_format": "не определено", "ids_format": "не определено", "names_format": "не определено", "total_area_location": "не найдена", "stamp_present": false, "reading_tips": "Виден только фрагмент плана."}}
+4. Структура плана видна, но текст не читается уверенно: слишком мелкий шрифт (CAD/САПР планы с тонкими линиями), размытие, тени, низкое разрешение, цифры сливаются с линиями стен — ты вынужден угадывать, а не читать →
+   {"error": true, "message": "Текст на плане не читается — загрузите более чёткое изображение или скан", "plan_metadata": null}
+Только если изображение — полноценный читаемый план БТИ с читаемым текстом, продолжай анализ.
+
+ПРАВИЛО «НЕ УГАДЫВАЙ»: если ты не можешь однозначно прочитать текст (название помещения, цифру площади) — это ошибка типа 4, возвращай error. null для area допустим ТОЛЬКО если площадь явно не указана на плане. Если площадь на плане есть, но плохо видна — error типа 4.
+
+ОЦЕНКА ЧИТАЕМОСТИ (readability_score, rejection_reason) — заполняй для всех успешных планов:
+- readability_score: целое число 0-100, где 100 = идеально читаемый скан
+  * 80-100: все данные чёткие, цифры не касаются линий, текст читается без труда
+  * 60-79: план читается хорошо, незначительные помехи (лёгкое размытие, мелкий текст)
+  * 40-59: есть затруднения — цифры касаются линий стен, план сфотографирован а не отсканирован, часть данных трудночитаема
+  * 20-39: многое не читается — сильное размытие, тени, искажения
+  * 0-19: план практически нечитаем
+- rejection_reason: одно предложение о главной причине снижения читаемости. null если план отличного качества (score >= 80).
+
+ПРАВИЛО ИМЕНОВАНИЯ:
+Определи по изображению: есть ли внутри контуров помещений текстовые надписи-названия — слова типа «Кухня», «Жилая», «Коридор», «Санузел»? Если есть — копируй их ДОСЛОВНО для каждого помещения, где надпись видна. Если для конкретного помещения надписи нет — пиши «Помещение [id]». Если надписей-названий нет совсем (только цифры) — ВСЕ помещения называются строго «Помещение [id]». ЗАПРЕЩЕНО писать название комнаты если ты не видишь это слово НАПЕЧАТАННЫМ внутри контура данного помещения.
 
 
 ПРАВИЛА ИДЕНТИФИКАЦИИ (id):
@@ -2077,9 +2133,10 @@ def analyze_bti():
 2. ПЛОЩАДИ ПОМЕЩЕНИЙ — числа ВНУТРИ контура помещения, обычно по центру. Форматы:
    а) Дробь "N/X.X" — ВЕРХНЕЕ число (N) это НОМЕР помещения, НИЖНЕЕ (X.X) — ПЛОЩАДЬ в м². Пример: "6/7.9" → id=6, area=7.9. Пример: "1/21.1" → id=1, area=21.1.
    б) Просто число с м²: "18.5 м²" → area=18.5.
-   в) Просто число без единиц по центру: "18.5" → area=18.5.
-   г) Только номер без второго числа — площадь НЕ указана → area: null.
-АЛГОРИТМ: для каждого помещения — найди число ВНУТРИ контура → определи его тип → если дробь, нижнее число = area → если только номер = area: null. Числа у стен НЕ трогай.
+   в) Число с точкой или запятой без единиц по центру: "18.5" или "18,5" → area=18.5.
+   г) Одно целое число без дроби и без м² — это НОМЕР помещения, не площадь → area: null.
+АЛГОРИТМ: для каждого помещения — найди число ВНУТРИ контура → определи его тип → если дробь, нижнее число = area → если число с точкой/запятой = area → если одно целое число без м² = это номер, area: null. Числа у стен НЕ трогай.
+ПРАВИЛО: площадь ВСЕГДА содержит точку или запятую (дробная часть), либо явный символ м². Целое число без м² внутри контура — это id, а не площадь.
 
 ПРАВИЛА ИМЕНОВАНИЯ И ПЛОЩАДИ (name, area):
 - name — это ТОЛЬКО буквенный текст напечатанный ВНУТРИ контура данного помещения, скопированный ДОСЛОВНО. Текст из соседнего помещения — не используй, даже если он близко к границе.
@@ -2114,29 +2171,7 @@ def analyze_bti():
 - total_area_location: где указана общая площадь. Пиши "не найдена" если не видишь её на текущем изображении — не предполагай наличие штампа за кадром.
 - stamp_present: true ТОЛЬКО если официальный штамп/печать организации виден прямо на изображении; false если не виден или план обрезан
 - reading_tips: 1-2 предложения — только реально наблюдаемые особенности этого плана. Не придумывай паттерны которых нет на изображении.
-
-ПРОВЕРКА КАЧЕСТВА И ТИПА ИЗОБРАЖЕНИЯ — выполни ПЕРВОЙ:
-1. Это не план БТИ (фото комнаты, документ другого типа, случайное фото) →
-   {"error": true, "message": "На фото не план БТИ", "plan_metadata": null}
-2. Изображение слишком размытое, тёмное, засвеченное или повёрнуто так, что прочитать план невозможно →
-   {"error": true, "message": "Фото плохого качества, план не читается", "plan_metadata": {"plan_type": "фото", "areas_format": "не читается", "ids_format": "не читается", "names_format": "не читается", "total_area_location": "не найдена", "stamp_present": false, "reading_tips": "Качество изображения недостаточно для анализа."}}
-3. Виден только фрагмент плана (план обрезан, часть листа за кадром, угол листа) →
-   {"error": true, "message": "На фото только фрагмент плана", "plan_metadata": {"plan_type": "скан", "areas_format": "не определено", "ids_format": "не определено", "names_format": "не определено", "total_area_location": "не найдена", "stamp_present": false, "reading_tips": "Виден только фрагмент плана."}}
-4. Структура плана видна, но текст не читается уверенно: слишком мелкий шрифт (CAD/САПР планы с тонкими линиями), размытие, тени, низкое разрешение, цифры сливаются с линиями стен — ты вынужден угадывать, а не читать →
-   {"error": true, "message": "Текст на плане не читается — загрузите более чёткое изображение или скан", "plan_metadata": null}
-Только если изображение — полноценный читаемый план БТИ с читаемым текстом, продолжай анализ.
-
-ПРАВИЛО «НЕ УГАДЫВАЙ»: если ты не можешь однозначно прочитать текст (название помещения, цифру площади) — это ошибка типа 4, возвращай error. null для area допустим ТОЛЬКО если площадь явно не указана на плане. Если площадь на плане есть, но плохо видна — error типа 4.
-
-ОЦЕНКА ЧИТАЕМОСТИ (readability_score, rejection_reason) — заполняй для всех успешных планов:
-- readability_score: целое число 0-100, где 100 = идеально читаемый скан
-  * 80-100: все данные чёткие, цифры не касаются линий, текст читается без труда
-  * 60-79: план читается хорошо, незначительные помехи (лёгкое размытие, мелкий текст)
-  * 40-59: есть затруднения — цифры касаются линий стен, план сфотографирован а не отсканирован, часть данных трудночитаема
-  * 20-39: многое не читается — сильное размытие, тени, искажения
-  * 0-19: план практически нечитаем
-- rejection_reason: одно предложение о главной причине снижения читаемости. null если план отличного качества (score >= 80).
-
+""" + hint_block + """
 Отвечай строго в JSON."""
 
         user_prompt = """Проанализируй это изображение. Сначала проверь качество и тип — если есть проблема, верни error. Иначе верни полный анализ плана БТИ в формате:
@@ -2163,7 +2198,7 @@ def analyze_bti():
   "rooms": [
     {
       "id": 1,
-      "name": "<'Помещение N (площадь)' или 'Помещение N'""" + (" — подписей нет, только этот формат>" if not allow_names else " — или дословный текст с плана если подпись есть внутри контура>") + """,
+      "name": "<'Помещение N (площадь)' или 'Помещение N' если надписей нет, иначе — дословный текст надписи из плана>",
       "area": <число с плана или null>
     }
   ]
@@ -2187,13 +2222,14 @@ def analyze_bti():
 
         gpt_result = json.loads(response.choices[0].message.content)
         if not gpt_result.get("error") and gpt_result.get("rooms"):
+            main_allow_names = _has_text_labels(gpt_result.get("plan_metadata"))
             gpt_result["rooms"] = _ensure_area_in_name(gpt_result["rooms"])
-            gpt_result["rooms"] = _sanitize_room_names(gpt_result["rooms"], allow_names)
+            gpt_result["rooms"] = _sanitize_room_names(gpt_result["rooms"], main_allow_names)
         gpt_result["_debug_hash"] = photo_hash
 
         if not gpt_result.get("error"):
             score = gpt_result.get("readability_score")
-            if score is not None and score < 60:
+            if score is not None and score < 50:
                 print(f"[analyze-bti] readability_score={score} below threshold, rejecting")
                 return jsonify({
                     "error": True,
@@ -2205,31 +2241,11 @@ def analyze_bti():
         if not gpt_result.get("error"):
             effective_total = total_area_param or gpt_result.get("total_area")
             if effective_total:
-                rooms = gpt_result.get("rooms") or []
-                rooms_with_area = [r for r in rooms if r.get("area") is not None]
-                null_count = len(rooms) - len(rooms_with_area)
-                calculated_sum = sum(r["area"] for r in rooms_with_area)
-
-                math_fail = False
-                gap = effective_total - calculated_sum
-                if null_count > 0:
-                    # Some rooms have no area on the plan (sanitary, corridor etc.)
-                    # Check that the unaccounted gap is plausible: < 15 m² per null room
-                    area_per_null = gap / null_count
-                    if gap < 0 or area_per_null > 15:
-                        math_fail = True
-                else:
-                    # No null rooms: fail if gap > 5 m²
-                    if gap > 5:
-                        math_fail = True
-
-                if math_fail:
-                    return jsonify({
-                        "error": True,
-                        "message": "План проанализирован не полностью — часть помещений не читается",
-                        "readability_score": gpt_result.get("readability_score"),
-                        "rejection_reason": gpt_result.get("rejection_reason")
-                    })
+                math_error = _validate_area_math(gpt_result.get("rooms") or [], effective_total)
+                if math_error:
+                    math_error["readability_score"] = gpt_result.get("readability_score")
+                    math_error["rejection_reason"] = gpt_result.get("rejection_reason")
+                    return jsonify(math_error)
             gpt_result["rooms"] = generate_camera_points(base_64_image, gpt_result.get("rooms", []), gpt_result.get("plan_metadata"))
             gpt_result = calculate_math(gpt_result, effective_total)
             gpt_result["plan_description"] = build_plan_description(gpt_result)
