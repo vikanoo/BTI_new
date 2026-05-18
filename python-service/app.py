@@ -643,17 +643,6 @@ def annotate_rooms():
 
 @app.route('/annotate-changes', methods=['POST'])
 def annotate_changes():
-    """
-    Draws wall-level annotations on the floor plan.
-    Input:  multipart/form-data  { image: <PNG binary>, rooms_json: <JSON string>, changes: <JSON string> }
-    Output: PNG binary
-    Colors: red = illegal, yellow = requires_approval
-
-    Strategy per change:
-      - 2 rooms:  centroid-strip Hough search → line or badge-only
-      - 1 room:   longest Hough line inside room bbox → line or badge-only
-      - No polygon outline fallback — wrong outline is worse than no outline.
-    """
     if 'image' not in request.files:
         return {'error': 'No image provided'}, 400
     for field in ('rooms_json', 'changes'):
@@ -684,7 +673,20 @@ def annotate_changes():
     draw = ImageDraw.Draw(overlay)
 
     badge_num = 1
-    room_map = {r.get('id', ''): r for r in rooms}
+    
+    # ИСПРАВЛЕНИЕ 1: Приводим ID к строке, чтобы точно совпало с changes (str(r.get('id')))
+    room_map = {str(r.get('id', '')): r for r in rooms}
+
+    # Вспомогательная функция для поиска центра комнаты по её camera_points
+    def get_room_center_from_points(room_obj, w, h):
+        points = room_obj.get('camera_points', [])
+        if not points:
+            return None
+        # Считаем среднее по всем точкам камеры в этой комнате
+        avg_x = sum(p.get('x_percent', 0) for p in points) / len(points)
+        avg_y = sum(p.get('y_percent', 0) for p in points) / len(points)
+        # Переводим относительные координаты (0-1) в реальные пиксели фото БТИ
+        return (int(avg_x * w), int(avg_y * h))
 
     for change in changes:
         cls = change.get('classification', 'legal')
@@ -695,62 +697,63 @@ def annotate_changes():
         bg_color   = label_bg.get(cls, (150, 150, 150, 220))
         line_w = max(4, int(min(width, height) * 0.008))
 
-        affected_ids = change.get('affected_room_ids') or [change.get('room_id', '')]
+        # Приводим affected_ids к строкам, чтобы не было конфликтов типов
+        affected_ids = [str(rid) for rid in (change.get('affected_room_ids') or [change.get('room_id', '')])]
         change_type  = change.get('type', '')
 
-        # Types that involve a physical wall: Hough search makes sense.
-        # Internal changes (fixtures, doorways, other) → badge-only, no wall search.
         WALL_TYPES = {'wall_removal', 'wall_addition', 'room_merge', 'room_split'}
         needs_wall_search = change_type in WALL_TYPES
 
-        drawn_segment = None  # (x1, y1, x2, y2) pixels
+        drawn_segment = None
         badge_pos = None
 
-        if needs_wall_search and len(affected_ids) >= 2:
-            # Wall between two rooms: centroid-strip Hough search
+        # Пытаемся найти базовые координаты комнат через точки камер
+        c1, c2 = None, None
+        if len(affected_ids) >= 1:
             r1 = room_map.get(affected_ids[0], {})
+            c1 = get_room_center_from_points(r1, width, height)
+        if len(affected_ids) >= 2:
             r2 = room_map.get(affected_ids[1], {})
-            poly1 = region_to_polygon(r1.get('polygon') or r1.get('region_percent', {}), width, height)
-            poly2 = region_to_polygon(r2.get('polygon') or r2.get('region_percent', {}), width, height)
-            if poly1 and poly2:
-                c1 = polygon_centroid(poly1)
-                c2 = polygon_centroid(poly2)
+            c2 = get_room_center_from_points(r2, width, height)
+
+        # Логика отрисовки линий Хафа (если нашли центры двух комнат)
+        if needs_wall_search and c1 and c2:
+            try:
                 drawn_segment = find_wall_between_centroids(img_cv, c1, c2)
-                if badge_pos is None:
-                    badge_pos = c1
+            except Exception:
+                drawn_segment = None
+            badge_pos = c1
 
-        elif needs_wall_search and len(affected_ids) == 1:
-            # Single-room wall change: find longest wall line inside room bbox
-            room = room_map.get(affected_ids[0], {})
-            poly = region_to_polygon(
-                room.get('polygon') or room.get('region_percent', {}), width, height
-            )
-            if poly:
-                drawn_segment = find_longest_hough_in_bbox(img_cv, poly, width, height)
-                badge_pos = polygon_centroid(poly)
+        # Если это одиночная комната или поиск стены не дал результатов
+        if badge_pos is None and c1:
+            badge_pos = c1
 
+        # Если линия успешно построилась алгоритмом Хафа
         if drawn_segment is not None:
             x1s, y1s, x2s, y2s = drawn_segment
             draw.line([(x1s, y1s), (x2s, y2s)], fill=line_color, width=line_w * 2)
+            # Бейдж вешаем ровно по центру нарисованной линии изменения
             badge_pos = ((x1s + x2s) // 2, (y1s + y2s) // 2)
 
-        # Fallback: badge_pos may still be None if polygon lookup failed for all rooms.
-        # Find any available room polygon and place badge at its centroid.
+        # Жесткий фейлбек: если для текущих комнат точки не определились, 
+        # ищем вообще любую комнату, где есть координаты, чтобы не упасть в (0,0)
         if badge_pos is None:
             for rid in affected_ids:
                 room = room_map.get(rid, {})
-                poly = region_to_polygon(
-                    room.get('polygon') or room.get('region_percent', {}), width, height
-                )
-                if poly:
-                    badge_pos = polygon_centroid(poly)
+                center = get_room_center_from_points(room, width, height)
+                if center:
+                    badge_pos = center
                     break
 
+        # Отрисовка круглого бейджа с номером
         if badge_pos:
             mx, my = badge_pos
             r = line_w * 3
             draw.ellipse([mx - r, my - r, mx + r, my + r], fill=bg_color)
-            draw.text((mx - r // 2, my - r), str(badge_num), fill=(255, 255, 255, 255))
+            
+            # Подгонка текста по центру круга
+            text_str = str(badge_num)
+            draw.text((mx - r // 2, my - r), text_str, fill=(255, 255, 255, 255))
             badge_num += 1
 
     result = Image.alpha_composite(img, overlay).convert('RGB')
@@ -758,7 +761,6 @@ def annotate_changes():
     result.save(img_io, 'PNG')
     img_io.seek(0)
     return send_file(img_io, mimetype='image/png', download_name='annotated_changes.png')
-
 
 # =========================
 # ЗАГРУЗКА ИЗОБРАЖЕНИЯ
@@ -1923,6 +1925,7 @@ Tone & Language:
   * "По диагонали на противоположный угол и межкомнатную перегородку"
   * "Вдоль смежной стены в сторону дверного проема"
 - Формулировка должна отвечать на вопрос: "На что конкретно смотрит камера?". Текст должен быть понятен обычному человеку без строительного образования.
+- КАТЕГОРИЧЕСКИ ЗАПРЕЩЕНО использовать иностранные, технические или анатомические термины (например, "distal", "проксимальный", "створ"). Используй только простые бытовые слова: "дальний", "ближний", "левый", "правый".
 
 Logic Constraints:
 1. Если помещение пустое — ориентируйся на углы (левый/правый от входа) и стены (фасадная/смежная).
