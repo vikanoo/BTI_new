@@ -697,7 +697,6 @@ def annotate_changes():
         bg_color   = label_bg.get(cls, (150, 150, 150, 220))
         line_w = max(4, int(min(width, height) * 0.008))
 
-        # Приводим affected_ids к строкам, чтобы не было конфликтов типов
         affected_ids = [str(rid) for rid in (change.get('affected_room_ids') or [change.get('room_id', '')])]
         change_type  = change.get('type', '')
 
@@ -707,55 +706,65 @@ def annotate_changes():
         drawn_segment = None
         badge_pos = None
 
-        # Пытаемся найти базовые координаты комнат через точки камер
-        c1, c2 = None, None
-        if len(affected_ids) >= 1:
-            r1 = room_map.get(affected_ids[0], {})
-            c1 = get_room_center_from_points(r1, width, height)
-        if len(affected_ids) >= 2:
-            r2 = room_map.get(affected_ids[1], {})
-            c2 = get_room_center_from_points(r2, width, height)
+        # Собираем все доступные точки камер для затронутых комнат
+        all_room_points = []
+        for rid in affected_ids:
+            r_obj = room_map.get(rid, {})
+            for cp in r_obj.get('camera_points', []):
+                px = int(cp.get('x_percent', 0) * width)
+                py = int(cp.get('y_percent', 0) * height)
+                # Сохраняем координаты и тип элемента
+                all_room_points.append({'coords': (px, py), 'elem': cp.get('renovation_element', '')})
 
-        # Логика отрисовки линий Хафа (если нашли центры двух комнат)
-        if needs_wall_search and c1 and c2:
-            try:
-                drawn_segment = find_wall_between_centroids(img_cv, c1, c2)
-            except Exception:
-                drawn_segment = None
-            badge_pos = c1
+        # Вычисляем базовый центроид по точкам камер
+        if all_room_points:
+            avg_x = sum(p['coords'][0] for p in all_room_points) // len(all_room_points)
+            avg_y = sum(p['coords'][1] for p in all_room_points) // len(all_room_points)
+            badge_pos = (avg_x, avg_y)
 
-        # Если это одиночная комната или поиск стены не дал результатов
-        if badge_pos is None and c1:
-            badge_pos = c1
+        # ЛОГИКА ПОИСКА СТЕНЫ
+        if needs_wall_search and all_room_points:
+            # Сценарий А: Есть две комнаты. Ищем линию между их центрами.
+            if len(affected_ids) >= 2:
+                r1 = room_map.get(affected_ids[0], {})
+                r2 = room_map.get(affected_ids[1], {})
+                c1 = get_room_center_from_points(r1, width, height)
+                c2 = get_room_center_from_points(r2, width, height)
+                if c1 and c2:
+                    try:
+                        drawn_segment = find_wall_between_centroids(img_cv, c1, c2)
+                    except Exception:
+                        drawn_segment = None
+            
+            # Сценарий Б (Фейлбек): ИИ передал 1 комнату. 
+            # Ищем точки, которые были размечены как стык стен ("wall_junction")
+            if drawn_segment is None:
+                junc_points = [p['coords'] for p in all_room_points if p['elem'] == 'wall_junction']
+                # Если нашли хотя бы две точки стыка стены в этой комнате — строим линию между ними!
+                if len(junc_points) >= 2:
+                    try:
+                        drawn_segment = find_wall_between_centroids(img_cv, junc_points[0], junc_points[1])
+                    except Exception:
+                        drawn_segment = None
 
-        # Если линия успешно построилась алгоритмом Хафа
+        # Если линия Хафа успешно построилась (в Сценарии А или Б)
         if drawn_segment is not None:
             x1s, y1s, x2s, y2s = drawn_segment
+            # Рисуем жирную линию перепланировки на месте стены
             draw.line([(x1s, y1s), (x2s, y2s)], fill=line_color, width=line_w * 2)
-            # Бейдж вешаем ровно по центру нарисованной линии изменения
+            # Перемещаем кружочек с номером ровно на центр этой линии
             badge_pos = ((x1s + x2s) // 2, (y1s + y2s) // 2)
 
-        # Жесткий фейлбек: если для текущих комнат точки не определились, 
-        # ищем вообще любую комнату, где есть координаты, чтобы не упасть в (0,0)
-        if badge_pos is None:
-            for rid in affected_ids:
-                room = room_map.get(rid, {})
-                center = get_room_center_from_points(room, width, height)
-                if center:
-                    badge_pos = center
-                    break
-
-        # Отрисовка круглого бейджа с номером
+        # Отрисовка круглого бейджа с номером перепланировки
         if badge_pos:
             mx, my = badge_pos
             r = line_w * 3
             draw.ellipse([mx - r, my - r, mx + r, my + r], fill=bg_color)
             
-            # Подгонка текста по центру круга
             text_str = str(badge_num)
             draw.text((mx - r // 2, my - r), text_str, fill=(255, 255, 255, 255))
             badge_num += 1
-
+            
     result = Image.alpha_composite(img, overlay).convert('RGB')
     img_io = io.BytesIO()
     result.save(img_io, 'PNG')
