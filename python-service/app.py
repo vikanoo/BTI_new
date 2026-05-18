@@ -616,7 +616,7 @@ def detect_rooms_with_shots():
 @app.route('/annotate-rooms', methods=['POST'])
 def annotate_rooms():
     """
-    Draws semi-transparent room labels on the floor plan.
+    Draws semi-transparent room labels on the floor plan using strict ID mapping.
     Input:  multipart/form-data  { image: <PNG binary>, rooms_json: <JSON string> }
     Output: PNG binary
     """
@@ -632,7 +632,12 @@ def annotate_rooms():
     overlay = Image.new('RGBA', img.size, (0, 0, 0, 0))
     draw = ImageDraw.Draw(overlay)
 
-    for i, room in enumerate(rooms):
+    for room in rooms:
+        # Получаем реальный ID комнаты (например, 1, 2, 5...)
+        room_id = room.get('id')
+        if room_id is None:
+            continue
+
         poly = region_to_polygon(room.get('polygon') or room.get('region_percent', {}), width, height)
         if not poly:
             continue
@@ -640,11 +645,15 @@ def annotate_rooms():
         cx, cy = polygon_centroid(poly)
         r = max(12, int(min(width, height) * 0.018))
 
+        # Рисуем синий круг для комнаты
         draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(59, 130, 246, 220))
-        num = str(i + 1)
+        
+        # ВАЖНО: Пишем внутрь круга реальный ID комнаты, а не индекс цикла i!
+        num = str(room_id)
         draw.text((cx - r // 2, cy - r // 2), num, fill=(255, 255, 255, 255))
 
-        label = room.get('name', f'Помещение {i + 1}')
+        # Название берем из JSON или формируем красиво по ID
+        label = room.get('name', f'Помещение {room_id}')
         draw.text((cx + r + 4, cy - r // 2), label, fill=(0, 0, 100, 230))
 
     result = Image.alpha_composite(img, overlay).convert('RGB')
@@ -687,18 +696,15 @@ def annotate_changes():
 
     badge_num = 1
     
-    # ИСПРАВЛЕНИЕ 1: Приводим ID к строке, чтобы точно совпало с changes (str(r.get('id')))
+    # Строгое мапирование комнат по их строковому ID
     room_map = {str(r.get('id', '')): r for r in rooms}
 
-    # Вспомогательная функция для поиска центра комнаты по её camera_points
     def get_room_center_from_points(room_obj, w, h):
         points = room_obj.get('camera_points', [])
         if not points:
             return None
-        # Считаем среднее по всем точкам камеры в этой комнате
         avg_x = sum(p.get('x_percent', 0) for p in points) / len(points)
         avg_y = sum(p.get('y_percent', 0) for p in points) / len(points)
-        # Переводим относительные координаты (0-1) в реальные пиксели фото БТИ
         return (int(avg_x * w), int(avg_y * h))
 
     for change in changes:
@@ -719,54 +725,38 @@ def annotate_changes():
         drawn_segment = None
         badge_pos = None
 
-        # Собираем все доступные точки камер для затронутых комнат
-        all_room_points = []
+        # Вычисляем центры затронутых комнат
+        centers = []
         for rid in affected_ids:
             r_obj = room_map.get(rid, {})
-            for cp in r_obj.get('camera_points', []):
-                px = int(cp.get('x_percent', 0) * width)
-                py = int(cp.get('y_percent', 0) * height)
-                # Сохраняем координаты и тип элемента
-                all_room_points.append({'coords': (px, py), 'elem': cp.get('renovation_element', '')})
+            c = get_room_center_from_points(r_obj, width, height)
+            if c:
+                centers.append(c)
 
-        # Вычисляем базовый центроид по точкам камер
-        if all_room_points:
-            avg_x = sum(p['coords'][0] for p in all_room_points) // len(all_room_points)
-            avg_y = sum(p['coords'][1] for p in all_room_points) // len(all_room_points)
-            badge_pos = (avg_x, avg_y)
+        # Если нашли центры комнат, базово ставим кружок ровно посередине между ними
+        if len(centers) >= 2:
+            badge_pos = ((centers[0][0] + centers[1][0]) // 2, (centers[0][1] + centers[1][1]) // 2)
+        elif len(centers) == 1:
+            badge_pos = centers[0]
 
-        # ЛОГИКА ПОИСКА СТЕНЫ
-        if needs_wall_search and all_room_points:
-            # Сценарий А: Есть две комнаты. Ищем линию между их центрами.
-            if len(affected_ids) >= 2:
-                r1 = room_map.get(affected_ids[0], {})
-                r2 = room_map.get(affected_ids[1], {})
-                c1 = get_room_center_from_points(r1, width, height)
-                c2 = get_room_center_from_points(r2, width, height)
-                if c1 and c2:
-                    try:
-                        drawn_segment = find_wall_between_centroids(img_cv, c1, c2)
-                    except Exception:
-                        drawn_segment = None
-            
-            # Сценарий Б (Фейлбек): ИИ передал 1 комнату. 
-            # Ищем точки, которые были размечены как стык стен ("wall_junction")
-            if drawn_segment is None:
-                junc_points = [p['coords'] for p in all_room_points if p['elem'] == 'wall_junction']
-                # Если нашли хотя бы две точки стыка стены в этой комнате — строим линию между ними!
-                if len(junc_points) >= 2:
-                    try:
-                        drawn_segment = find_wall_between_centroids(img_cv, junc_points[0], junc_points[1])
-                    except Exception:
-                        drawn_segment = None
+        # УЛУЧШЕННАЯ ЛОГИКА ПОИСКА СТЕНЫ
+        if needs_wall_search and len(centers) >= 2:
+            try:
+                # Пытаемся найти точную стену алгоритмом OpenCV между центрами комнат
+                drawn_segment = find_wall_between_centroids(img_cv, centers[0], centers[1])
+            except Exception:
+                drawn_segment = None
 
-        # Если линия Хафа успешно построилась (в Сценарии А или Б)
+        # Если OpenCV успешно определил стену, переопределяем позицию линии и кружка
         if drawn_segment is not None:
             x1s, y1s, x2s, y2s = drawn_segment
-            # Рисуем жирную линию перепланировки на месте стены
             draw.line([(x1s, y1s), (x2s, y2s)], fill=line_color, width=line_w * 2)
-            # Перемещаем кружочек с номером ровно на центр этой линии
             badge_pos = ((x1s + x2s) // 2, (y1s + y2s) // 2)
+        else:
+            # ФЕЙЛБЕК: Если алгоритм Хафа не нашел четкую линию, рисуем прямую 
+            # линию-штрих между центрами комнат, чтобы показать пользователю, где проблема
+            if len(centers) >= 2:
+                draw.line([centers[0], centers[1]], fill=line_color, width=line_w, joint="round")
 
         # Отрисовка круглого бейджа с номером перепланировки
         if badge_pos:
@@ -774,8 +764,9 @@ def annotate_changes():
             r = line_w * 3
             draw.ellipse([mx - r, my - r, mx + r, my + r], fill=bg_color)
             
+            # Улучшенное центрирование текста внутри кружка
             text_str = str(badge_num)
-            draw.text((mx - r // 2, my - r), text_str, fill=(255, 255, 255, 255))
+            draw.text((mx - r // 3, my - r // 1.5), text_str, fill=(255, 255, 255, 255))
             badge_num += 1
 
     result = Image.alpha_composite(img, overlay).convert('RGB')
@@ -784,6 +775,7 @@ def annotate_changes():
     img_io.seek(0)
     return send_file(img_io, mimetype='image/png', download_name='annotated_changes.png')
 
+    
 # =========================
 # ЗАГРУЗКА ИЗОБРАЖЕНИЯ
 # =========================
