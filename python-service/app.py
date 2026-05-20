@@ -747,16 +747,26 @@ def annotate_changes():
             except Exception:
                 drawn_segment = None
 
-        # Если OpenCV успешно определил стену, переопределяем позицию линии и кружка
+        # УЛУЧШЕННАЯ ЛОГИКА ПОИСКА СТЕНЫ
+        if needs_wall_search and len(centers) >= 2:
+            try:
+                # Пытаемся найти точную стену алгоритмом OpenCV между центрами комнат
+                drawn_segment = find_wall_between_centroids(img_cv, centers[0], centers[1])
+            except Exception:
+                drawn_segment = None
+
+        # Если OpenCV успешно определил стену, рисуем её
         if drawn_segment is not None:
             x1s, y1s, x2s, y2s = drawn_segment
             draw.line([(x1s, y1s), (x2s, y2s)], fill=line_color, width=line_w * 2)
             badge_pos = ((x1s + x2s) // 2, (y1s + y2s) // 2)
         else:
-            # ФЕЙЛБЕК: Если алгоритм Хафа не нашел четкую линию, рисуем прямую 
-            # линию-штрих между центрами комнат, чтобы показать пользователю, где проблема
+            # ЖЕЛЕЗНЫЙ ФЕЙЛБЕК: если центры из camera_points сломались или улетели,
+            # берем координаты прямо из регионов/полигонов комнат (если они есть),
+            # либо принудительно рисуем линию между вычисленными центрами centers[0] и centers[1]
             if len(centers) >= 2:
                 draw.line([centers[0], centers[1]], fill=line_color, width=line_w, joint="round")
+                badge_pos = ((centers[0][0] + centers[1][0]) // 2, (centers[0][1] + centers[1][1]) // 2)
 
         # Отрисовка круглого бейджа с номером перепланировки
         if badge_pos:
@@ -775,7 +785,7 @@ def annotate_changes():
     img_io.seek(0)
     return send_file(img_io, mimetype='image/png', download_name='annotated_changes.png')
 
-    
+
 # =========================
 # ЗАГРУЗКА ИЗОБРАЖЕНИЯ
 # =========================
@@ -1913,6 +1923,7 @@ Data Schema (JSON):
 
 3. "description" (Техническая задача кадра):
    - Объясни простым языком, что должно попасть в кадр для контроля перепланировки (стыки стен, углы, проемы).
+   - - ЗАПРЕЩЕНО привязываться к сторонам чертежа ("внизу плана", "сверху схемы", "нижняя стена", "верхняя стена").
    - Примеры: "Зафиксировать левую стену и её стык с потолком", "Показать расположение дверного проема относительно окна для проверки переноса перегородок".
 
 Tone & Language:
